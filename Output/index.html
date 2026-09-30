@@ -1704,10 +1704,9 @@
             '<div class="summary-box"><span class="tag">자동 요약</span>' + autoSummary(item, re, g) + '</div>' +
           '</div>' +
           '<div class="evidence-row">' + evidenceHtml + '</div>' +
-          '<div class="actions">' +
-            (statusClass.indexOf('critical') !== -1 ? '<button class="btn btn-primary" type="button">소명 요청서 생성</button>' : '') +
-            '<button class="btn btn-ghost" type="button">기간축 드릴다운 (분기 → 월)</button>' +
-          '</div>' +
+          (statusClass.indexOf('critical') !== -1
+            ? '<div class="actions"><button class="btn btn-primary" type="button">소명 요청서 생성</button></div>'
+            : '') +
         '</div>' +
       '</div>';
 
