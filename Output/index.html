@@ -947,6 +947,13 @@
           <svg viewBox="0 0 640 220" id="cost-trend-all" role="img" aria-label="광주·창원 공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="cost-breakdown-all-title">로스유형별 발생 비용</h2>
+        </div>
+        <table class="upl-table" id="cost-breakdown-all"></table>
+      </div>
     </div>
 
     <div class="section-title-row">
@@ -1067,6 +1074,13 @@
           <svg viewBox="0 0 640 220" id="cost-trend-gj" role="img" aria-label="광주공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="cost-breakdown-gj-title">로스유형별 발생 비용</h2>
+        </div>
+        <table class="upl-table" id="cost-breakdown-gj"></table>
+      </div>
     </div>
 
     <div class="section-title-row">
@@ -1162,6 +1176,13 @@
         <div class="chart-wrap">
           <svg viewBox="0 0 640 220" id="cost-trend-cw" role="img" aria-label="창원공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="cost-breakdown-cw-title">로스유형별 발생 비용</h2>
+        </div>
+        <table class="upl-table" id="cost-breakdown-cw"></table>
       </div>
     </div>
 
@@ -1490,6 +1511,57 @@
       out.push(Math.round(s));
     }
     return out;
+  }
+
+  // 선택된 기간단위의 "가장 최근 구간"(당월/당분기/당해) 기준으로 로스유형 6종별 발생 비용을 만원 단위로 뽑는다.
+  // 로스비용 추이 카드 옆의 "로스유형별 발생 비용" 표가 쓴다.
+  function lastPeriodTypeCosts(factory, granularity) {
+    var fac = MOCK_SERIES.factories[factory];
+    return LOSS_TYPE_ORDER.map(function (t) {
+      var costMonthlyManwon = fac.types[t].cost_million.map(function (v) { return v * 100; });
+      var raw = aggregateCostRaw(costMonthlyManwon, granularity);
+      return { type: t, amount: raw.values[raw.values.length - 1] };
+    });
+  }
+
+  // 표에 쓸 단위(만원/억원)와 그 단위로 값을 문자열로 바꾸는 함수를 함께 돌려준다.
+  function decideCostUnit(allValues) {
+    var maxAbs = Math.max.apply(null, allValues.map(function (v) { return Math.abs(v); })) || 0;
+    if (maxAbs >= 10000) {
+      return { unit: '억원', show: function (v) { return (Math.round(v / 1000) / 10).toFixed(1); } };
+    }
+    return { unit: '만원', show: function (v) { return Math.round(v).toLocaleString(); } };
+  }
+
+  function renderCostBreakdown(tableId, titleId, factories, granularity) {
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var titleEl = document.getElementById(titleId);
+    var periodWord = granularity === 'month' ? '당월' : (granularity === 'quarter' ? '당분기' : '당해');
+
+    if (factories.length > 1) {
+      var gjRows = lastPeriodTypeCosts('광주', granularity);
+      var cwRows = lastPeriodTypeCosts('창원', granularity);
+      var rows = LOSS_TYPE_ORDER.map(function (t, idx) {
+        return { type: t, gj: gjRows[idx].amount, cw: cwRows[idx].amount, total: gjRows[idx].amount + cwRows[idx].amount };
+      });
+      rows.sort(function (a, b) { return b.total - a.total; });
+      var unit = decideCostUnit(rows.reduce(function (acc, r) { return acc.concat([r.gj, r.cw, r.total]); }, []));
+      if (titleEl) titleEl.textContent = periodWord + ' 로스유형별 발생 비용 (' + unit.unit + ')';
+      var body = rows.map(function (r) {
+        return '<tr><td>' + r.type + '</td><td>' + unit.show(r.gj) + '</td><td>' + unit.show(r.cw) + '</td><td><b>' + unit.show(r.total) + '</b></td></tr>';
+      }).join('');
+      table.innerHTML = '<thead><tr><th>로스유형</th><th>광주</th><th>창원</th><th>합계</th></tr></thead><tbody>' + body + '</tbody>';
+    } else {
+      var typeRows = lastPeriodTypeCosts(factories[0], granularity);
+      typeRows.sort(function (a, b) { return b.amount - a.amount; });
+      var unit2 = decideCostUnit(typeRows.map(function (r) { return r.amount; }));
+      if (titleEl) titleEl.textContent = periodWord + ' 로스유형별 발생 비용 (' + unit2.unit + ')';
+      var body2 = typeRows.map(function (r) {
+        return '<tr><td>' + r.type + '</td><td>' + unit2.show(r.amount) + '</td></tr>';
+      }).join('');
+      table.innerHTML = '<thead><tr><th>로스유형</th><th>금액</th></tr></thead><tbody>' + body2 + '</tbody>';
+    }
   }
 
   // points: [{label, value}] — pointsForGranularity()가 만든, 선택된 기간 단위 시계열
@@ -1883,6 +1955,12 @@
       s.points.forEach(function (p, i) {
         var r = (i === s.points.length - 1) ? 4 : 2.5;
         svg.appendChild(el('circle', { cx: x(i), cy: y(p.value), r: r, fill: s.color }));
+        // x축에 라벨이 찍히는 지점(월별=3개월마다 등)에만 값도 같이 표시 — 매 점마다 다 쓰면 겹쳐서 안 보인다.
+        if (axisLabels[i]) {
+          var vt = el('text', { x: x(i), y: y(p.value) - 6, 'font-size': 8, fill: s.color, 'text-anchor': 'middle' });
+          vt.textContent = (Math.round(p.value * 10) / 10) + '%';
+          svg.appendChild(vt);
+        }
       });
     });
   }
@@ -1939,6 +2017,11 @@
       sp.values.forEach(function (v, i) {
         var r = (i === sp.values.length - 1) ? 4 : 2.5;
         svg.appendChild(el('circle', { cx: x(i), cy: y(v), r: r, fill: sp.color }));
+        if (axisLabels[i]) {
+          var vt = el('text', { x: x(i), y: y(v) - 6, 'font-size': 8, fill: sp.color, 'text-anchor': 'middle' });
+          vt.textContent = unitInfo.fmt(v);
+          svg.appendChild(vt);
+        }
       });
     });
 
@@ -1989,6 +2072,10 @@
       var elx = document.getElementById(pair[0]);
       if (elx) elx.textContent = costTitleFor(pair[1]);
     });
+
+    renderCostBreakdown('cost-breakdown-all', 'cost-breakdown-all-title', ['광주', '창원'], granularity);
+    renderCostBreakdown('cost-breakdown-gj', 'cost-breakdown-gj-title', ['광주'], granularity);
+    renderCostBreakdown('cost-breakdown-cw', 'cost-breakdown-cw-title', ['창원'], granularity);
   }
 
   function renderAll(granularity) {
