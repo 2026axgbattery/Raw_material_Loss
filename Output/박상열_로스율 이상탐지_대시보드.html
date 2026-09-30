@@ -1468,18 +1468,14 @@
   }
 
   var FMT_MANWON = function (v) { return Math.round(v).toLocaleString(); };
-  var FMT_EOKWON = function (v) { return v.toFixed(1); };
 
   // 선택된 기간단위(월/분기/년)에 맞는 비용 시계열 하나를 돌려준다 — 카드 상세의 "발생 비용" 미니차트가 쓴다.
   // 값 규모에 따라 단위를 자동으로 고른다: 최댓값이 1억원(=10,000만원) 미만이면 만원(정수)을,
   // 그 이상이면 억원(소수 1자리)을 쓴다. 월별처럼 값이 작을 때 억원 고정으로 표시하면 0.0/0.1로
-  // 뭉개져 막대 높이 차이가 안 보이는 문제가 있어(사용자 피드백) 이렇게 자동 전환하도록 바꿨다.
-  // 만원 단위의 {labels, values} 원본을 받아, 값 규모에 맞춰 만원/억원 단위를 자동으로 고른다.
+  // 뭉개져 막대 높이 차이가 안 보이는 문제가 있어(사용자 피드백) 자동 전환을 시도했었지만,
+  // 연도별까지 억원으로 바뀌면 표·차트 단위가 뒤섞여 오히려 헷갈린다는 피드백을 받아
+  // 월/분기/연도 구분 없이 항상 만원 단위로 고정했다.
   function pickCostUnit(raw) {
-    var maxAbs = Math.max.apply(null, raw.values.map(function (v) { return Math.abs(v); })) || 0;
-    if (maxAbs >= 10000) {
-      return { labels: raw.labels, values: raw.values.map(function (v) { return Math.round(v / 1000) / 10; }), unit: '억원', fmt: FMT_EOKWON };
-    }
     return { labels: raw.labels, values: raw.values, unit: '만원', fmt: FMT_MANWON };
   }
 
@@ -1524,12 +1520,8 @@
     });
   }
 
-  // 표에 쓸 단위(만원/억원)와 그 단위로 값을 문자열로 바꾸는 함수를 함께 돌려준다.
+  // 표에 쓸 단위와 그 단위로 값을 문자열로 바꾸는 함수를 함께 돌려준다 — 항상 만원으로 고정.
   function decideCostUnit(allValues) {
-    var maxAbs = Math.max.apply(null, allValues.map(function (v) { return Math.abs(v); })) || 0;
-    if (maxAbs >= 10000) {
-      return { unit: '억원', show: function (v) { return (Math.round(v / 1000) / 10).toFixed(1); } };
-    }
     return { unit: '만원', show: function (v) { return Math.round(v).toLocaleString(); } };
   }
 
