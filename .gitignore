@@ -1,0 +1,15 @@
+# Node / Next.js (web/)
+web/node_modules/
+web/.next/
+web/dev.log
+web/tsconfig.tsbuildinfo
+web/CLAUDE.md
+web/AGENTS.md
+
+# Excel lock/temp files
+~$*.xlsx
+~$*.xls
+
+# OS junk
+Thumbs.db
+.DS_Store
