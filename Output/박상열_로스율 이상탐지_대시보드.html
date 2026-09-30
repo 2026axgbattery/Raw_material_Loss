@@ -759,6 +759,15 @@
   .evidence-item .k { font-size: 0.6875rem; color: var(--text-tertiary); }
   .evidence-item .v { font-size: 0.875rem; font-weight: 600; margin-top: 2px; }
 
+  .note-block { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .note-label { display: block; font-size: 0.6875rem; color: var(--text-tertiary); margin-bottom: 6px; }
+  .note-input {
+    width: 100%; resize: vertical; font: inherit; font-size: 0.8125rem; color: var(--text-primary);
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  }
+  .note-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .note-status { font-size: 0.75rem; color: var(--accent2-strong); }
+
   .actions {
     display: flex;
     gap: 8px;
@@ -1640,6 +1649,23 @@
     return lead + tail + (item.note ? (' ' + item.note) : '');
   }
 
+  // ===== 증감 사유 메모 — 카드별로 자유롭게 적어두고 localStorage에 저장 =====
+  // 키는 (공장·로스유형·기간단위·해당 기간 라벨)로 묶는다. 그래서 8월에 써둔 메모는 8월 카드에,
+  // 9월 데이터가 들어와 "당월"이 9월로 바뀌면 9월 카드는 새 메모칸으로 시작한다(과거 메모는 안 없어짐).
+  var NOTES_LS_KEY = 'lossInsightNotesV1';
+  function loadNotes() {
+    try {
+      var raw = localStorage.getItem(NOTES_LS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+  function getNote(key) { return loadNotes()[key] || ''; }
+  function setNote(key, text) {
+    var notes = loadNotes();
+    if (text) notes[key] = text; else delete notes[key];
+    try { localStorage.setItem(NOTES_LS_KEY, JSON.stringify(notes)); } catch (e) { /* ignore */ }
+  }
+
   function buildCard(scope, factory, item, idx, granularity, forceOpen) {
     var monthly = item.series;
     var points = pointsForGranularity(monthly, granularity);
@@ -1673,6 +1699,18 @@
       '<div class="evidence-item"><div class="k">' + g.unit + '</div><div class="v num">' + fmtPct(re.cur) + '</div></div>' +
       '<div class="evidence-item"><div class="k">' + g.priorMax + ' 이력</div><div class="v num">' + fmtPct(re.priorMax) + ' (' + re.priorMaxLabel + ')</div></div>';
 
+    var noteKey = factory + '|' + item.typeTitle + '|' + granularity + '|' + re.curLabel;
+    var noteId = cardId + '-note';
+    var noteHtml =
+      '<div class="note-block">' +
+        '<label class="note-label" for="' + noteId + '">증감 사유 메모 (' + esc(re.curLabel) + ' 기준)</label>' +
+        '<textarea class="note-input" id="' + noteId + '" data-note-key="' + esc(noteKey) + '" rows="2" placeholder="이번 기간 증감 사유를 적어두면 이 브라우저에 저장됩니다.">' + esc(getNote(noteKey)) + '</textarea>' +
+        '<div class="note-actions">' +
+          '<button class="btn btn-ghost" type="button" data-note-save="' + noteId + '">저장</button>' +
+          '<span class="note-status" id="' + noteId + '-status"></span>' +
+        '</div>' +
+      '</div>';
+
     var contribHtml = item.contrib ? (
       '<div class="contrib-block"><div class="contrib-block-title">기여도 분해</div>' +
       item.contrib.map(function (c) {
@@ -1704,6 +1742,7 @@
             '<div class="summary-box"><span class="tag">자동 요약</span>' + autoSummary(item, re, g) + '</div>' +
           '</div>' +
           '<div class="evidence-row">' + evidenceHtml + '</div>' +
+          noteHtml +
           (statusClass.indexOf('critical') !== -1
             ? '<div class="actions"><button class="btn btn-primary" type="button">소명 요청서 생성</button></div>'
             : '') +
@@ -2881,6 +2920,20 @@
     var isOpen = card.classList.contains('open');
     card.classList.toggle('open', !isOpen);
     btn.setAttribute('aria-expanded', String(!isOpen));
+  });
+
+  // 증감 사유 메모 저장 (마찬가지로 이벤트 위임 — 카드가 다시 그려져도 계속 동작)
+  document.addEventListener('click', function (evt) {
+    var saveBtn = evt.target.closest && evt.target.closest('[data-note-save]');
+    if (!saveBtn) return;
+    var textarea = document.getElementById(saveBtn.getAttribute('data-note-save'));
+    if (!textarea) return;
+    setNote(textarea.getAttribute('data-note-key'), textarea.value.trim());
+    var statusEl = document.getElementById(textarea.id + '-status');
+    if (statusEl) {
+      statusEl.textContent = '저장됨';
+      setTimeout(function () { statusEl.textContent = ''; }, 1500);
+    }
   });
 
   // 탭 전환
