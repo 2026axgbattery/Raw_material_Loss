@@ -6,6 +6,14 @@ web/tsconfig.tsbuildinfo
 web/CLAUDE.md
 web/AGENTS.md
 
+# Environment variables (none in use yet — kept as a guard for when they are added)
+.env
+.env.local
+.env.*.local
+web/.env
+web/.env.local
+web/.env.*.local
+
 # Excel lock/temp files
 ~$*.xlsx
 ~$*.xls
