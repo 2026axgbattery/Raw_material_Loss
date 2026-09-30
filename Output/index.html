@@ -1,11 +1,2680 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <title>이상탐지 대시보드</title>
-  <script>location.replace('박상열_로스율 이상탐지_대시보드.html');</script>
-</head>
-<body>
-  <p>대시보드로 이동 중입니다. 자동으로 넘어가지 않으면 <a href="박상열_로스율 이상탐지_대시보드.html">여기를 클릭</a>하세요.</p>
-</body>
-</html>
+<title>이상탐지 대시보드</title>
+<!-- 업로드 탭에서 xlsx를 브라우저 안에서 직접 읽기 위한 SheetJS(CDN). 인터넷 연결이 없으면 업로드 탭만 동작하지 않는다. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  @font-face {
+    font-family: "Sebang Gothic";
+    src: local("세방고딕 Regular"), local("SebangGothic-Regular"), local("Sebang Gothic Regular"), local("SebangGothic Regular");
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: "Sebang Gothic";
+    src: local("세방고딕 Bold"), local("SebangGothic-Bold"), local("Sebang Gothic Bold"), local("SebangGothic Bold");
+    font-weight: 700;
+  }
+
+  :root {
+    --font-family-heading: "Sebang Gothic", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+    --font-family-base: "Sebang Gothic", "Pretendard", "Noto Sans KR", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+    --bg-base: #FFFFFF;
+    --bg-surface: #FBFBFB;
+    --bg-surface-2: #F1F2F1;
+    --border: #D0D0CE;
+    --border-soft: #E3E3E2;
+    --text-primary: #333F48;
+    --text-secondary: #5C656D;
+    --text-tertiary: #858C91;
+    --text-disabled: #B5BBBD;
+    --accent: #EB3300;
+    --accent-strong: #A42400;
+    --accent-tint: #FDEFEB;
+    --accent2: #0097A9;
+    --accent2-strong: #006A76;
+    --accent2-tint: #EBF7F8;
+    --success: #008090;
+    --danger: #A42400;
+    --danger-tint: #FBD6CC;
+    --shadow-card: 0 2px 8px rgba(51, 63, 72, 0.08);
+    --shadow-pop: 0 8px 24px rgba(51, 63, 72, 0.16);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-base: #14191D;
+      --bg-surface: #1C2328;
+      --bg-surface-2: #242C32;
+      --border: #2B363D;
+      --border-soft: #242C32;
+      --text-primary: #EFF0F0;
+      --text-secondary: #ADB2B6;
+      --text-tertiary: #858C91;
+      --text-disabled: #5C656D;
+      --accent: #EF5C33;
+      --accent-strong: #F38566;
+      --accent-tint: rgba(239, 92, 51, 0.12);
+      --accent2: #33ACBA;
+      --accent2-strong: #66C1CB;
+      --accent2-tint: rgba(51, 172, 186, 0.12);
+      --success: #33ACBA;
+      --danger: #F38566;
+      --danger-tint: rgba(239, 92, 51, 0.16);
+      --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
+      --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg-base: #14191D;
+    --bg-surface: #1C2328;
+    --bg-surface-2: #242C32;
+    --border: #2B363D;
+    --border-soft: #242C32;
+    --text-primary: #EFF0F0;
+    --text-secondary: #ADB2B6;
+    --text-tertiary: #858C91;
+    --text-disabled: #5C656D;
+    --accent: #EF5C33;
+    --accent-strong: #F38566;
+    --accent-tint: rgba(239, 92, 51, 0.12);
+    --accent2: #33ACBA;
+    --accent2-strong: #66C1CB;
+    --accent2-tint: rgba(51, 172, 186, 0.12);
+    --success: #33ACBA;
+    --danger: #F38566;
+    --danger-tint: rgba(239, 92, 51, 0.16);
+    --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
+    --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    font-family: var(--font-family-base);
+    font-weight: 400;
+    padding: 16px 12px;
+    display: flex;
+    justify-content: center;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .num {
+    /* 숫자도 세방고딕을 우선 사용한다 (003_design.md §3.2~3.3, 2026-09-11 갱신).
+       Inter/Roboto는 --font-family-base 체인 안에서 세방고딕이 없는 환경의 폴백으로만 쓰인다. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  a { color: inherit; }
+
+  [hidden] { display: none !important; }
+
+  /* ---------- 16:9 frame + left rail (fills the monitor) ---------- */
+  html, body { height: 100%; }
+  body { align-items: center; }
+  .frame {
+    width: 96vw;
+    max-width: 1800px;
+    aspect-ratio: 16 / 9;
+    max-height: 94vh;
+    display: flex;
+    background: var(--bg-base);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow-pop);
+  }
+
+  .rail {
+    flex: none;
+    width: 116px;
+    background: var(--bg-surface-2);
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px 0 14px;
+    gap: 4px;
+    overflow-y: auto;
+  }
+  .rail-brand {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--text-primary);
+    position: relative;
+    flex: none;
+    margin: 0 auto 22px;
+  }
+  .rail-brand::before,
+  .rail-brand::after {
+    content: "";
+    position: absolute;
+    background: var(--bg-base);
+  }
+  .rail-brand::before { width: 12px; height: 3px; top: 9px; left: 9px; transform: skewX(-18deg); }
+  .rail-brand::after { width: 12px; height: 3px; bottom: 9px; left: 9px; transform: skewX(-18deg); }
+
+  .rail .tab {
+    font: inherit;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    border-bottom: none;
+    padding: 14px 8px;
+    margin: 0;
+    text-align: center;
+    cursor: pointer;
+  }
+  .rail .tab[aria-selected="true"] {
+    color: var(--text-primary);
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    background: var(--bg-surface);
+    border-left-color: var(--accent);
+  }
+
+  .rail-divider { height: 1px; background: var(--border-soft); margin: 10px 12px; flex: none; }
+  .rail-section-label { font-size: 0.6875rem; color: var(--text-tertiary); text-align: center; margin-bottom: 2px; flex: none; }
+  .rail .granularity-toggle {
+    flex-direction: column;
+    background: none;
+    padding: 0 8px;
+    gap: 3px;
+  }
+  .rail .gtab { padding: 8px 4px; text-align: center; }
+  .rail .gtab[aria-pressed="true"] { box-shadow: none; border: 1px solid var(--border-soft); }
+
+  .frame-scroll {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 24px 32px;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 0 16px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--text-primary);
+    position: relative;
+    flex: none;
+  }
+  .brand-mark::before,
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    background: var(--bg-base);
+  }
+  .brand-mark::before {
+    width: 12px; height: 3px;
+    top: 9px; left: 9px;
+    transform: skewX(-18deg);
+  }
+  .brand-mark::after {
+    width: 12px; height: 3px;
+    bottom: 9px; left: 9px;
+    transform: skewX(-18deg);
+  }
+
+  .brand-text .name {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+  }
+  .brand-text .name .accent { color: var(--accent); }
+  .brand-text .sub {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-top: 1px;
+  }
+
+  .run-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .pill-ok { background: var(--accent2-tint); color: var(--accent2-strong); }
+  .pill-warn { background: var(--accent-tint); color: var(--accent-strong); }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+
+  /* ---------- Shared filter row ---------- */
+  .shared-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 16px;
+  }
+  .shared-filters select { flex: 1 1 140px; }
+
+  .granularity-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-surface-2);
+    padding: 4px;
+    border-radius: 10px;
+    flex: none;
+  }
+  .gtab {
+    font: inherit;
+    font-size: 0.8125rem;
+    padding: 8px 16px;
+    border-radius: 7px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .gtab[aria-pressed="true"] {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    box-shadow: var(--shadow-card);
+  }
+
+  .contrib-block { margin-top: 14px; }
+  .contrib-block-title { font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 8px; }
+
+  select {
+    appearance: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 30px 8px 12px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+  select:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
+
+  /* ---------- 업로드 탭 ---------- */
+  .upl-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 0.8125rem; color: var(--text-secondary); }
+  .upl-field select, .upl-field input[type="month"] {
+    font: inherit; font-size: 0.8125rem; color: var(--text-primary); background: var(--bg-surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  }
+  .upl-field input[type="file"] { font: inherit; font-size: 0.75rem; color: var(--text-secondary); }
+  .upload-error { padding: 12px 14px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-strong); font-size: 0.8125rem; }
+  .upload-ok { padding: 14px 16px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-surface); font-size: 0.8125rem; }
+  .upload-pending { padding: 12px 14px; border-radius: 8px; background: var(--bg-surface); border: 1px solid var(--border-soft); font-size: 0.8125rem; color: var(--text-tertiary); }
+  .upload-warn { margin-top: 8px; font-size: 0.75rem; color: var(--accent-strong); }
+  .upl-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8125rem; }
+  .upl-table th, .upl-table td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--border-soft); }
+  .upl-table th:first-child, .upl-table td:first-child { text-align: left; }
+
+  /* ---------- 챗봇 탭 ---------- */
+  .chat-wrap-outer { display: flex; flex-direction: column; height: calc(100vh - 220px); min-height: 420px; max-width: 720px; }
+  .chat-log { flex: 1; overflow-y: auto; padding: 4px 2px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .chat-msg { max-width: 82%; padding: 10px 13px; border-radius: 12px; font-size: 0.8125rem; line-height: 1.55; }
+  .chat-msg.bot { align-self: flex-start; background: var(--bg-surface-2); color: var(--text-primary); border-bottom-left-radius: 3px; }
+  .chat-msg.user { align-self: flex-end; background: var(--accent2); color: #fff; border-bottom-right-radius: 3px; }
+  .chat-msg table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.75rem; }
+  .chat-msg th, .chat-msg td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border-soft); }
+  .chat-msg th:first-child, .chat-msg td:first-child { text-align: left; }
+  .chat-suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); margin-bottom: 10px; }
+  .chat-chip { font: inherit; font-size: 0.75rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; }
+  .chat-chip:hover { border-color: var(--accent2); color: var(--accent2-strong); }
+  .chat-input-row { display: flex; gap: 8px; padding-top: 10px; }
+  .chat-input-row input[type="text"] { flex: 1; font: inherit; font-size: 0.8125rem; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .chat-mode-tag { display: inline-block; font-size: 0.6875rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .chat-mode-tag.llm { background: var(--accent2-tint); color: var(--accent2-strong); }
+  .chat-mode-tag.rule { background: var(--bg-surface); border: 1px solid var(--border-soft); color: var(--text-tertiary); }
+  .chat-llmerr { margin-top: 8px; font-size: 0.75rem; color: var(--accent-strong); }
+  .chat-pending { color: var(--text-tertiary); }
+
+  /* ---------- Page heading ---------- */
+  .page-head {
+    padding: 22px 0 18px;
+  }
+
+  .page-head h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+
+  .page-head p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+
+  /* ---------- KPI tiles ---------- */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .kpi {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .kpi .label {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+
+  .kpi .value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .kpi .value {
+    font-size: 1.625rem;
+    font-weight: 700;
+  }
+
+  .kpi .target {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+  }
+
+  .delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.75rem;
+    margin-top: 8px;
+  }
+  .delta.up { color: var(--danger); }
+  .delta.down { color: var(--accent2-strong); }
+  .delta.flat { color: var(--text-tertiary); }
+
+  /* ---------- Section cards ---------- */
+  .row-2col {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px 20px;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .card-head h2 {
+    font-size: 0.9375rem;
+  }
+  .card-head .hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+  }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .chart-wrap { width: 100%; overflow-x: auto; }
+  .chart-wrap svg { width: 100%; height: auto; display: block; min-width: 460px; }
+
+  .compare-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row .cname { font-size: 0.8125rem; }
+  .compare-row .csub { font-size: 0.6875rem; color: var(--text-tertiary); margin-top: 2px; }
+  .compare-row .cval { text-align: right; }
+  .compare-row .cval .num { font-size: 1rem; font-weight: 700; }
+  .compare-row .cval .ctarget { font-size: 0.6875rem; color: var(--text-tertiary); display: block; margin-top: 2px; }
+
+  .meter {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--border-soft);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .meter > i { display: block; height: 100%; border-radius: 999px; }
+
+  /* ---------- Validation strip ---------- */
+  .valid-strip {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+  .valid-strip b { font-weight: 400; color: var(--text-primary); }
+  .valid-strip .sep { width: 1px; height: 14px; background: var(--border); }
+
+  /* ---------- Anomaly list ---------- */
+  .section-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .section-title-row h2 { font-size: 1.0625rem; }
+  .section-title-row .hint { font-size: 0.8125rem; color: var(--text-secondary); }
+
+  .anomaly-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .anomaly {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+  }
+
+  .anomaly-top {
+    display: grid;
+    grid-template-columns: 34px 1fr auto auto 22px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+  }
+  .anomaly-top:focus-visible { outline: 2px solid var(--accent2); outline-offset: -2px; }
+
+  .rank {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+  }
+  .anomaly.critical .rank { background: var(--danger-tint); color: var(--accent-strong); }
+
+  .path {
+    min-width: 0;
+  }
+  .path .breadcrumb {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .path .breadcrumb b { font-weight: 400; color: var(--text-secondary); }
+  .path .item {
+    font-size: 0.9375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rules {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: 300px;
+  }
+  .rule-chip {
+    font-size: 0.6875rem;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--accent2-tint);
+    color: var(--accent2-strong);
+    white-space: nowrap;
+  }
+  .rule-chip.hot { background: var(--danger-tint); color: var(--accent-strong); }
+
+  .metric { text-align: right; }
+  .metric .rate { font-size: 1.0625rem; font-weight: 700; }
+  .metric .vs { font-size: 0.6875rem; color: var(--text-tertiary); margin-top: 2px; }
+
+  .chev {
+    color: var(--text-tertiary);
+    transition: transform 0.2s ease;
+    justify-self: end;
+  }
+  .anomaly.open .chev { transform: rotate(180deg); }
+
+  .anomaly-detail {
+    display: none;
+    padding: 4px 20px 20px 66px;
+    border-top: 1px solid var(--border-soft);
+  }
+  .anomaly.open .anomaly-detail { display: block; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 22px;
+    padding-top: 14px;
+  }
+
+  .detail-id {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.9375rem;
+    margin: 10px 0 0;
+  }
+  .detail-id .sep { color: var(--text-tertiary); font-weight: 400; }
+  .detail-id .material { color: var(--text-secondary); font-weight: 400; }
+
+  .rule-eval {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: var(--bg-surface-2);
+    border-radius: 10px;
+  }
+  .rule-eval-title {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+  }
+  .re-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: start;
+    gap: 10px;
+    font-size: 0.75rem;
+    padding: 7px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .re-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .re-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6875rem;
+    flex: none;
+    margin-top: 1px;
+  }
+  .re-row.pass .re-icon { background: var(--danger-tint); color: var(--accent-strong); }
+  .re-row.fail .re-icon { background: var(--bg-surface); color: var(--text-disabled); border: 1px solid var(--border); }
+  .re-rule { display: block; color: var(--text-primary); }
+  .re-detail { display: block; color: var(--text-secondary); margin-top: 2px; }
+  .re-verdict {
+    font-size: 0.6875rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    align-self: start;
+  }
+  .re-row.pass .re-verdict { background: var(--danger-tint); color: var(--accent-strong); }
+  .re-row.fail .re-verdict { background: var(--bg-surface); color: var(--text-disabled); border: 1px solid var(--border); }
+
+  .contrib-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 48px;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.75rem;
+    margin-bottom: 8px;
+  }
+  .contrib-row .name { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contrib-row .bar { height: 8px; border-radius: 999px; background: var(--bg-surface-2); overflow: hidden; }
+  .contrib-row .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .contrib-row .pct { text-align: right; font-weight: 600; }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .chart-box {
+    background: var(--bg-surface-2);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+  }
+  .chart-box h4 {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    margin: 0 0 6px;
+    font-family: var(--font-family-base);
+  }
+  .chart-box svg { width: 100%; height: auto; display: block; }
+  .anomaly.normal .rank { background: var(--bg-surface-2); color: var(--text-tertiary); }
+  .rule-chip.ok { background: var(--bg-surface-2); color: var(--text-tertiary); }
+
+  .summary-box {
+    background: var(--accent2-tint);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+  .summary-box .tag {
+    display: block;
+    font-size: 0.6875rem;
+    color: var(--accent2-strong);
+    letter-spacing: 0.03em;
+    margin-bottom: 6px;
+  }
+  .summary-box b { font-weight: 400; color: var(--accent-strong); }
+
+  .evidence-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .evidence-item .k { font-size: 0.6875rem; color: var(--text-tertiary); }
+  .evidence-item .v { font-size: 0.875rem; font-weight: 600; margin-top: 2px; }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .btn {
+    font-family: var(--font-family-heading);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 9px 16px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-ghost { background: transparent; border-color: var(--border); color: var(--text-primary); }
+  .btn-ghost:hover { background: var(--bg-surface-2); }
+
+  footer {
+    margin-top: 30px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 380px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="frame">
+  <nav class="rail" role="tablist" aria-label="공장 선택">
+    <div class="rail-brand" aria-hidden="true"></div>
+    <button class="tab" role="tab" data-tab="all" aria-selected="true">종합</button>
+    <button class="tab" role="tab" data-tab="gj" aria-selected="false">광주공장</button>
+    <button class="tab" role="tab" data-tab="cw" aria-selected="false">창원공장</button>
+
+    <div class="rail-divider" aria-hidden="true"></div>
+    <div class="rail-section-label">기간단위</div>
+    <div class="granularity-toggle" role="group" aria-label="분석 기간 단위">
+      <button type="button" class="gtab" data-g="month" aria-pressed="true">월별</button>
+      <button type="button" class="gtab" data-g="quarter" aria-pressed="false">분기별</button>
+      <button type="button" class="gtab" data-g="year" aria-pressed="false">연도별</button>
+    </div>
+    <div class="rail-divider" aria-hidden="true"></div>
+
+    <button class="tab" role="tab" data-tab="upload" aria-selected="false">업로드</button>
+    <button class="tab" role="tab" data-tab="chat" aria-selected="false">챗봇</button>
+  </nav>
+  <div class="frame-scroll">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div class="brand-text">
+        <div class="name">Loss <span class="accent">Insight</span></div>
+        <div class="sub">재료비 로스 이상탐지 · 원가혁신팀</div>
+      </div>
+    </div>
+    <div class="run-status">
+      <span class="pill pill-ok"><i class="pill-dot"></i>원본 파일 9종 업로드 · 파싱 성공 100%</span>
+      <span class="pill pill-warn"><i class="pill-dot"></i>정합성 검증 8/8 통과 · 경고 1건</span>
+    </div>
+  </div>
+
+  <div class="shared-filters">
+    <select aria-label="로스유형 필터">
+      <option>전체 로스유형</option>
+      <option>재고보정</option>
+      <option>슬러그</option>
+      <option>폐연호</option>
+      <option>초기연분</option>
+      <option>폐극판</option>
+      <option>폐전지</option>
+    </select>
+    <select aria-label="로스발생자재 필터">
+      <option>전체 로스발생자재</option>
+      <option>순연</option>
+      <option>경연</option>
+      <option>칼슘연</option>
+      <option>전조</option>
+      <option>카바</option>
+      <option>격리판</option>
+      <option>부자재</option>
+      <option>의장재</option>
+      <option>포장재</option>
+      <option>부대품</option>
+    </select>
+  </div>
+
+  <!-- ================= 종합 ================= -->
+  <section class="tab-panel" data-panel="all">
+    <div class="page-head">
+      <h1>2026년 8월 로스 이상탐지 결과 · 종합</h1>
+      <p>업로드 완료 09:12 · 분석 소요 <strong class="num">47분</strong> (목표 1시간 이내) · 광주 · 창원 2개 공장 통합 순위</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="label">광주공장 로스율</div>
+        <div class="value-row"><span class="value num">2.1%</span><span class="target num">/ 목표 2.0%</span></div>
+        <div class="delta up">▲ 전월 대비 0.2%p</div>
+      </div>
+      <div class="kpi">
+        <div class="label">창원공장 로스율</div>
+        <div class="value-row"><span class="value num">3.4%</span><span class="target num">/ 목표 4.0%</span></div>
+        <div class="delta down">▼ 전월 대비 0.8%p</div>
+      </div>
+      <div class="kpi">
+        <div class="label">탐지된 이상 항목</div>
+        <div class="value-row"><span class="value num">0</span><span class="target">건 · 로스유형 6종 전수 점검</span></div>
+        <div class="delta flat">이번 달 이상치 없음 · 하단은 값 크기순 상위 5건(목데이터 기준)</div>
+      </div>
+      <div class="kpi">
+        <div class="label">양공장 합산 로스금액</div>
+        <div class="value-row"><span class="value num">4,160만원</span><span class="target">당월(2026-08) · 코드대체 제외 6종</span></div>
+        <div class="delta down">▼ 전월 대비 80만원 감소</div>
+      </div>
+    </div>
+
+    <div class="row-2col">
+      <div class="card">
+        <div class="card-head">
+          <h2 id="trend-all-title">로스율 추이 (2023~2026)</h2>
+          <div class="legend">
+            <span><i style="background:var(--accent2)"></i>광주 (목표 2.0%)</span>
+            <span><i style="background:var(--accent)"></i>창원 (목표 4.0%)</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg viewBox="0 0 640 220" id="trend-all" role="img" aria-label="광주·창원 공장의 2023년 1월부터 2026년 8월까지 로스율 추이와 목표선"></svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>공장별 관리 현황</h2>
+          <span class="hint">8월 기준</span>
+        </div>
+        <div class="compare-row">
+          <div>
+            <div class="cname">광주공장</div>
+            <div class="csub">규격 상한 USL 2.0%</div>
+          </div>
+          <div class="cval">
+            <span class="num">2.1%</span>
+            <span class="ctarget">한도 대비 <span class="num">103%</span></span>
+          </div>
+        </div>
+        <div class="meter"><i style="width:35%;background:var(--accent)"></i></div>
+
+        <div class="compare-row" style="margin-top:14px">
+          <div>
+            <div class="cname">창원공장</div>
+            <div class="csub">규격 상한 USL 4.0%</div>
+          </div>
+          <div class="cval">
+            <span class="num">3.4%</span>
+            <span class="ctarget">한도 대비 <span class="num">86%</span></span>
+          </div>
+        </div>
+        <div class="meter"><i style="width:57%;background:var(--accent)"></i></div>
+
+        <div class="compare-row" style="margin-top:14px;border-bottom:none;padding-bottom:0">
+          <div class="csub">두 공장은 관리 수준이 달라 기준값을 분리 적용하며, 판정 로직(4개 룰)은 동일하게 적용됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title-row">
+      <h2>이상 포인트 Top 5</h2>
+      <span class="hint">광주·창원 통합 · 왼쪽 탭의 월별/분기별/연도별 버튼으로 판정 기준 자체를 바꿔볼 수 있습니다</span>
+    </div>
+
+    <div class="anomaly-list" id="anomaly-list-all"></div>
+  </section>
+
+  <!-- ================= 광주공장 ================= -->
+  <section class="tab-panel" data-panel="gj" hidden>
+    <div class="page-head">
+      <h1>광주공장 로스 이상탐지 결과</h1>
+      <p>규격 상한 USL <span class="num">2.0%</span> 기준 관리 · 폐극판 발생공정 7개 지점 + 최종 선별공정 추적</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="label">광주공장 로스율</div>
+        <div class="value-row"><span class="value num">2.1%</span><span class="target num">/ 목표 2.0%</span></div>
+        <div class="delta up">▲ 전월 대비 0.2%p</div>
+      </div>
+      <div class="kpi">
+        <div class="label">규격 한도 대비</div>
+        <div class="value-row"><span class="value num">103%</span><span class="target num">USL 2.0% 기준</span></div>
+        <div class="delta up">▲ 지난달 94%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">탐지된 이상 항목</div>
+        <div class="value-row"><span class="value num">0</span><span class="target">건 · 로스유형 6종 중</span></div>
+        <div class="delta flat">이번 달 이상치 없음(목데이터 기준, §6 참조)</div>
+      </div>
+      <div class="kpi">
+        <div class="label">이번 달 최대 영향 로스</div>
+        <div class="value-row"><span class="value num">640만원</span></div>
+        <div class="delta flat">폐극판</div>
+      </div>
+    </div>
+
+    <div class="row-2col">
+      <div class="card">
+        <div class="card-head">
+          <h2 id="trend-gj-title">로스율 추이 (2023~2026)</h2>
+          <div class="legend">
+            <span><i style="background:var(--accent2)"></i>광주 (목표 2.0%)</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg viewBox="0 0 640 220" id="trend-gj" role="img" aria-label="광주공장의 2023년 1월부터 2026년 8월까지 로스율 추이와 목표선"></svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>폐극판 발생공정별 현황</h2>
+          <span class="hint">8월 기준</span>
+        </div>
+        <div class="compare-row">
+          <div><div class="cname">폐극판선별</div><div class="csub">최종 선별공정</div></div>
+          <div class="cval"><span class="num">16.9%</span></div>
+        </div>
+        <div class="meter"><i style="width:16.9%;background:var(--accent)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_1공장1차조립_12라인</div><div class="csub">폐극판 발생공정</div></div>
+          <div class="cval"><span class="num">3.8%</span></div>
+        </div>
+        <div class="meter"><i style="width:3.8%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_극판_EX5호기</div><div class="csub">폐극판 발생공정</div></div>
+          <div class="cval"><span class="num">3.6%</span></div>
+        </div>
+        <div class="meter"><i style="width:3.6%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_극판_EX6호기</div><div class="csub">폐극판 발생공정</div></div>
+          <div class="cval"><span class="num">3.3%</span></div>
+        </div>
+        <div class="meter"><i style="width:3.3%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_극판_EX2호기</div><div class="csub">폐극판 발생공정</div></div>
+          <div class="cval"><span class="num">3.1%</span></div>
+        </div>
+        <div class="meter"><i style="width:3.1%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_1공장1차조립_11라인</div><div class="csub">폐극판 발생공정</div></div>
+          <div class="cval"><span class="num">2.6%</span></div>
+        </div>
+        <div class="meter"><i style="width:2.6%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px">
+          <div><div class="cname">생산_극판_EX1호기 · EX9호기</div><div class="csub">폐극판 발생공정 (합산)</div></div>
+          <div class="cval"><span class="num">4.6%</span></div>
+        </div>
+        <div class="meter"><i style="width:4.6%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:10px;border-bottom:none;padding-bottom:0">
+          <div><div class="cname">그 외 미확정 공정</div><div class="csub">EX3·4·7·8호기, 1차조립 13~33라인 등 — §7-3 확정 목록 밖(007 PRD §4-4 참조)</div></div>
+          <div class="cval"><span class="num">62.1%</span></div>
+        </div>
+        <div class="meter"><i style="width:62.1%;background:var(--text-tertiary)"></i></div>
+      </div>
+    </div>
+
+    <div class="section-title-row">
+      <h2>광주공장 이상 포인트</h2>
+      <span class="hint">로스유형 6종 전체 · 이상치 유무와 무관하게 모두 표시 · 항목을 눌러 판정 근거와 3개년 추이를 확인하세요</span>
+    </div>
+
+    <div class="anomaly-list" id="anomaly-list-gj"></div>
+  </section>
+
+  <!-- ================= 창원공장 ================= -->
+  <section class="tab-panel" data-panel="cw" hidden>
+    <div class="page-head">
+      <h1>창원공장 로스 이상탐지 결과</h1>
+      <p>규격 상한 USL <span class="num">4.0%</span> 기준 관리 · 발생공정 매핑 미확보로 로스유형 단위로 집계</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="label">창원공장 로스율</div>
+        <div class="value-row"><span class="value num">3.4%</span><span class="target num">/ 목표 4.0%</span></div>
+        <div class="delta down">▼ 전월 대비 0.8%p</div>
+      </div>
+      <div class="kpi">
+        <div class="label">규격 한도 대비</div>
+        <div class="value-row"><span class="value num">86%</span><span class="target num">USL 4.0% 기준</span></div>
+        <div class="delta down">▼ 지난달 106%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">탐지된 이상 항목</div>
+        <div class="value-row"><span class="value num">0</span><span class="target">건 · 로스유형 6종 중</span></div>
+        <div class="delta flat">이번 달 이상치 없음(목데이터 기준, §6 참조)</div>
+      </div>
+      <div class="kpi">
+        <div class="label">이번 달 최대 영향 로스</div>
+        <div class="value-row"><span class="value num">690만원</span></div>
+        <div class="delta flat">폐극판</div>
+      </div>
+    </div>
+
+    <div class="row-2col">
+      <div class="card">
+        <div class="card-head">
+          <h2 id="trend-cw-title">로스율 추이 (2023~2026)</h2>
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>창원 (목표 4.0%)</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg viewBox="0 0 640 220" id="trend-cw" role="img" aria-label="창원공장의 2023년 1월부터 2026년 8월까지 로스율 추이와 목표선"></svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>로스유형별 현황</h2>
+          <span class="hint">8월 기준</span>
+        </div>
+        <div class="compare-row">
+          <div><div class="cname">폐극판</div><div class="csub">로스유형 6종 중 최고</div></div>
+          <div class="cval"><span class="num">1.1%</span></div>
+        </div>
+        <div class="meter"><i style="width:17.6%;background:var(--accent)"></i></div>
+
+        <div class="compare-row" style="margin-top:12px">
+          <div><div class="cname">슬러그</div><div class="csub">정상 관리 범위 내</div></div>
+          <div class="cval"><span class="num">0.9%</span></div>
+        </div>
+        <div class="meter"><i style="width:15.5%;background:var(--accent2)"></i></div>
+
+        <div class="compare-row" style="margin-top:12px">
+          <div><div class="cname">폐전지</div><div class="csub">발생공정 매핑 미확보(가정치)</div></div>
+          <div class="cval"><span class="num">0.9%</span></div>
+        </div>
+        <div class="meter"><i style="width:15.3%;background:var(--accent)"></i></div>
+
+        <div class="compare-row" style="margin-top:12px;border-bottom:none;padding-bottom:0">
+          <div><div class="cname">재고보정·폐연호·초기연분</div><div class="csub">정상 관리 범위 (합산, 코드대체 제외)</div></div>
+          <div class="cval"><span class="num">0.5%</span></div>
+        </div>
+        <div class="meter"><i style="width:8.8%;background:var(--accent2)"></i></div>
+      </div>
+    </div>
+
+    <div class="section-title-row">
+      <h2>창원공장 이상 포인트</h2>
+      <span class="hint">로스유형 6종 전체 · 이상치 유무와 무관하게 모두 표시 · 항목을 눌러 판정 근거와 3개년 추이를 확인하세요</span>
+    </div>
+
+    <div class="anomaly-list" id="anomaly-list-cw"></div>
+  </section>
+
+  <!-- ================= 업로드 (누적관리) ================= -->
+  <section class="tab-panel" data-panel="upload" hidden>
+    <div class="page-head">
+      <h1>월별 원본 데이터 업로드 · 누적관리</h1>
+      <p>ZMMR0340 · ZCOE0101 · MES데이터 · ZPPR0070 4개 원본 파일을 매월 올리면 2023-01~2026-08 시계열 뒤에 이어붙습니다. <b>서버로 전송되지 않으며 이 브라우저의 localStorage에만 저장되는 클라이언트 전용 데모</b>입니다 — 다른 PC·브라우저에서는 보이지 않고, 캐시를 지우면 사라집니다.</p>
+    </div>
+
+    <div class="row-2col">
+      <div class="card">
+        <div class="card-head"><h2>이번 달 데이터 업로드</h2></div>
+        <form id="upload-form">
+          <label class="upl-field">
+            <span>공장</span>
+            <select id="upload-factory">
+              <option value="광주">광주공장</option>
+              <option value="창원">창원공장</option>
+            </select>
+          </label>
+          <label class="upl-field">
+            <span>대상 연월</span>
+            <input type="month" id="upload-month" min="2023-01" required>
+          </label>
+          <label class="upl-field">
+            <span>ZMMR0340 — 불량수량 원장(재고보정·슬러그, 코드대체는 로스율 계산에서 제외)</span>
+            <input type="file" id="upload-zmmr" accept=".xlsx,.xls">
+          </label>
+          <label class="upl-field">
+            <span>ZCOE0101 — 총 투입량·평균 단가</span>
+            <input type="file" id="upload-zcoe" accept=".xlsx,.xls">
+          </label>
+          <label class="upl-field">
+            <span>MES데이터 — 폐극판·폐전지 부적합실적조회</span>
+            <input type="file" id="upload-mes" accept=".xlsx,.xls">
+          </label>
+          <label class="upl-field">
+            <span>ZPPR0070 — BOM 구성부품</span>
+            <input type="file" id="upload-zppr" accept=".xlsx,.xls">
+          </label>
+          <div class="actions" style="margin-top:4px">
+            <button class="btn btn-primary" type="submit">처리 및 누적 반영</button>
+          </div>
+        </form>
+        <div id="upload-result" style="margin-top:14px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>누적 현황</h2></div>
+        <div id="upload-history"></div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" type="button" id="upload-reset">누적 데이터 초기화(기본 목데이터로 되돌리기)</button>
+        </div>
+        <div class="summary-box" style="margin-top:16px">
+          <span class="tag">계산 방식(요약)</span>
+          재고보정·슬러그(+텍스트 기준 폐연호·초기연분 재분류)는 ZMMR0340의 <b>구분유형</b>·<b>실제 차이금액</b>을 그대로 합산합니다. 코드대체는 자재 코드만 바뀌는 재분류일 뿐 실손실이 아니라서(로스율에 영향 없음) 집계에서 제외합니다.
+          폐극판(품목 SLI)·폐전지(품목 PCC/PCM)는 MES데이터 <b>불량수량</b> × ZPPR0070 <b>BOM 구성부품수량</b> × ZCOE0101 <b>평균 단가</b>로 환산합니다.
+          분모(총 투입금액)는 ZCOE0101 <b>출고수량합계 × 평균 단가</b> 합계입니다.
+          007_광주_폐극판폐전지_공정별_발생량_PRD.md에서 확인한 원본 구조를 최대한 따른 근사치이며, <b>정확한 로스 금액 산식은 박상열_PRD.md §10에서 여전히 미확정</b>이므로 실사용 전 현업 검증이 필요합니다.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 챗봇 ================= -->
+  <section class="tab-panel" data-panel="chat" hidden>
+    <div class="page-head">
+      <h1>로스율 질의응답 챗봇</h1>
+      <p>기간 비교·추이·이상치 등을 MOCK_SERIES(누적 데이터) 기준으로 즉시 계산합니다. 아래에서 본인 API 키를 등록하면 자유 문장을 <b>LLM이 해석</b>하고(숫자 계산은 항상 이 화면의 JS 엔진이 직접 수행), 키가 없으면 정해진 질문 패턴만 인식하는 <b>규칙 기반 모드</b>로 동작합니다.</p>
+    </div>
+
+    <details class="card" id="llm-settings-card" style="max-width:640px;margin-bottom:16px">
+      <summary style="cursor:pointer;font-family:var(--font-family-heading);font-weight:700">LLM 연결 설정 <span id="llm-status-badge" class="hint"></span></summary>
+      <div style="margin-top:14px">
+        <p style="font-size:0.75rem;color:var(--text-tertiary);margin:0 0 12px">
+          API 키는 이 브라우저의 localStorage에만 저장되며 어디로도 전송되지 않습니다(질문 해석을 위해 선택한 공급사 API로만 전송됩니다). 이 파일을 다른 사람과 공유하거나 개발자 도구를 여는 사람에게는 키가 노출될 수 있으니, 공용 PC에서는 사용 후 "키 삭제"를 눌러주세요.
+        </p>
+        <label class="upl-field">
+          <span>공급사</span>
+          <select id="llm-provider">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (GPT)</option>
+          </select>
+        </label>
+        <label class="upl-field">
+          <span>모델명</span>
+          <input type="text" id="llm-model" placeholder="예: claude-haiku-4-5-20251001">
+        </label>
+        <label class="upl-field">
+          <span>API 키</span>
+          <input type="password" id="llm-api-key" placeholder="sk-... / API 키 붙여넣기" autocomplete="off">
+        </label>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="llm-save">저장</button>
+          <button class="btn btn-ghost" type="button" id="llm-clear">키 삭제(규칙 기반으로 전환)</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="card chat-wrap-outer">
+      <div class="chat-log" id="chat-log"></div>
+      <div class="chat-suggest" id="chat-suggest">
+        <button type="button" class="chat-chip" data-q="25년 1~8월 누계와 26년 1~8월 누계를 비교해줘">25년 1~8월 누계와 26년 1~8월 누계를 비교해줘</button>
+        <button type="button" class="chat-chip" data-q="25년 1~8월 누계와 26년 1~8월 누계를 비교해주고 가장 많이 차이나는 로스유형이 뭔지 알려줘">25년 1~8월과 26년 1~8월 비교 + 가장 차이나는 유형은?</button>
+        <button type="button" class="chat-chip" data-q="반기별로 로스율이 어떻게 흘러가고 있어?">반기별로 로스율이 어떻게 흘러가고 있어?</button>
+        <button type="button" class="chat-chip" data-q="분기별 추이 알려줘">분기별 추이 알려줘</button>
+        <button type="button" class="chat-chip" data-q="폐극판 로스율 추이 알려줘">폐극판 로스율 추이 알려줘</button>
+        <button type="button" class="chat-chip" data-q="슬러그 로스율 지금 얼마야">슬러그 로스율 지금 얼마야</button>
+        <button type="button" class="chat-chip" data-q="지금 로스율 몇이야">지금 로스율 몇이야</button>
+        <button type="button" class="chat-chip" data-q="로스율이 제일 높았던 달은 언제야">로스율이 제일 높았던 달은 언제야</button>
+        <button type="button" class="chat-chip" data-q="이번달 이상치 있어?">이번달 이상치 있어?</button>
+      </div>
+      <form class="chat-input-row" id="chat-form">
+        <input type="text" id="chat-input" placeholder="예: 25년 1~8월 누계와 26년 1~8월 누계를 비교해줘" autocomplete="off">
+        <button class="btn btn-primary" type="submit">전송</button>
+      </form>
+    </div>
+  </section>
+
+  <footer>
+    <span>데이터 기준: 008/009_광주창원_..._목데이터_2023-2026.xlsx (2026-09-25 생성, 007 PRD 기준 합성) · 2026-08 업로드 가정 · 재료비 총액 대비 정합성 오차 0.6%p</span>
+    <span>Loss Insight MVP · FR-4 이상치 탐지 · FR-5 드릴다운 분석</span>
+  </footer>
+
+  </div>
+</div>
+
+<script>
+  var svgns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    var n = document.createElementNS(svgns, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  // ===== 로스유형 7종 전체 카드 (이상치 유무와 무관하게 항상 표시) =====
+  // 008/009_광주창원_..._목데이터_2023-2026.xlsx (007_광주_폐극판폐전지_공정별_발생량_PRD.md 기준으로 생성한
+  // 3개년 목데이터)의 실제 계산값을 그대로 사용한다. 이전 버전처럼 화면에서 매번 난수로 새로 생성하지 않는다.
+  // 월별/분기별/연도별 버튼으로 보기를 바꾸면, 트렌드 차트뿐 아니라 이상치 판정 4개
+  // 룰 자체도 선택된 기간 단위의 값을 기준으로 다시 계산된다(§ 아래 computeRuleEval).
+
+  // 008_광주창원_로스분석_목데이터_2023-2026.xlsx의 로스분석_tidy/월별_로스율_요약 시트를 그대로 옮긴 초기값.
+  // "업로드" 탭에서 매월 ZMMR0340/ZCOE0101/MES데이터/ZPPR0070을 올리면 이 뒤에 실측월이 이어붙고,
+  // 브라우저 localStorage에 저장돼 새로고침 후에도 누적 상태가 유지된다(서버 없음 — §LS_KEY 참조).
+  var DEFAULT_MOCK_SERIES ={"months": ["2023-01", "2023-02", "2023-03", "2023-04", "2023-05", "2023-06", "2023-07", "2023-08", "2023-09", "2023-10", "2023-11", "2023-12", "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12", "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"], "factories": {"광주": {"overall_rate_pct": [1.959, 2.103, 1.561, 1.518, 1.546, 1.392, 1.629, 1.996, 2.055, 2.194, 1.309, 2.03, 1.878, 2.084, 1.957, 1.616, 2.316, 2.281, 2.737, 2.415, 2.262, 1.934, 2.472, 1.904, 2.099, 1.492, 2.124, 2.327, 1.908, 2.359, 2.167, 2.387, 1.864, 1.737, 1.782, 1.944, 1.596, 1.969, 1.774, 1.816, 2.485, 2.33, 1.883, 2.408], "types": {"코드대체": {"rate_pct": [0.14, 0.142, 0.125, 0.105, 0.11, 0.088, 0.105, 0.117, 0.168, 0.157, 0.095, 0.128, 0.115, 0.168, 0.123, 0.114, 0.193, 0.155, 0.171, 0.185, 0.169, 0.143, 0.159, 0.163, 0.15, 0.09, 0.161, 0.15, 0.121, 0.173, 0.186, 0.166, 0.137, 0.1, 0.132, 0.158, 0.139, 0.136, 0.119, 0.121, 0.162, 0.176, 0.166, 0.114], "cost_million": [1.4, 1.4, 1.1, 1.1, 0.9, 0.8, 1.0, 1.1, 1.6, 1.5, 0.9, 1.1, 1.2, 1.6, 1.2, 1.1, 1.7, 1.4, 1.5, 1.8, 1.4, 1.4, 1.4, 1.5, 1.5, 0.9, 1.6, 1.6, 1.1, 1.5, 1.8, 1.5, 1.2, 0.9, 1.3, 1.6, 1.5, 1.5, 1.2, 1.2, 1.7, 1.6, 1.5, 1.1]}, "재고보정": {"rate_pct": [0.142, 0.149, 0.119, 0.121, 0.113, 0.101, 0.124, 0.119, 0.153, 0.176, 0.09, 0.145, 0.115, 0.166, 0.124, 0.146, 0.194, 0.154, 0.166, 0.197, 0.18, 0.13, 0.167, 0.138, 0.169, 0.102, 0.137, 0.15, 0.116, 0.137, 0.15, 0.171, 0.142, 0.113, 0.117, 0.172, 0.103, 0.169, 0.109, 0.137, 0.17, 0.188, 0.149, 0.145], "cost_million": [1.4, 1.5, 1.1, 1.2, 1.0, 0.9, 1.2, 1.1, 1.4, 1.7, 0.8, 1.3, 1.2, 1.6, 1.2, 1.4, 1.7, 1.4, 1.5, 1.9, 1.5, 1.3, 1.5, 1.3, 1.7, 1.0, 1.4, 1.6, 1.0, 1.2, 1.5, 1.6, 1.3, 1.0, 1.1, 1.8, 1.1, 1.9, 1.1, 1.4, 1.7, 1.7, 1.4, 1.4]}, "슬러그": {"rate_pct": [0.361, 0.397, 0.333, 0.326, 0.358, 0.325, 0.376, 0.405, 0.494, 0.557, 0.284, 0.454, 0.386, 0.469, 0.32, 0.391, 0.524, 0.469, 0.53, 0.555, 0.517, 0.461, 0.469, 0.526, 0.474, 0.338, 0.448, 0.57, 0.394, 0.441, 0.495, 0.54, 0.469, 0.368, 0.348, 0.4, 0.35, 0.428, 0.362, 0.451, 0.506, 0.551, 0.488, 0.489], "cost_million": [3.5, 4.0, 3.0, 3.3, 3.0, 3.0, 3.6, 3.7, 4.6, 5.3, 2.6, 4.0, 4.0, 4.5, 3.1, 3.8, 4.5, 4.2, 4.8, 5.3, 4.2, 4.5, 4.3, 5.0, 4.6, 3.3, 4.6, 6.0, 3.4, 3.8, 4.9, 5.0, 4.2, 3.4, 3.4, 4.1, 3.7, 4.8, 3.5, 4.5, 5.2, 5.1, 4.5, 4.6]}, "폐연호": {"rate_pct": [0.07, 0.069, 0.051, 0.047, 0.058, 0.049, 0.064, 0.063, 0.068, 0.071, 0.044, 0.07, 0.056, 0.072, 0.055, 0.066, 0.085, 0.081, 0.087, 0.092, 0.074, 0.069, 0.096, 0.075, 0.07, 0.057, 0.081, 0.097, 0.066, 0.075, 0.077, 0.08, 0.063, 0.049, 0.064, 0.073, 0.062, 0.07, 0.061, 0.063, 0.085, 0.088, 0.068, 0.087], "cost_million": [0.7, 0.7, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.7, 0.4, 0.6, 0.6, 0.7, 0.5, 0.6, 0.7, 0.7, 0.8, 0.9, 0.6, 0.7, 0.9, 0.7, 0.7, 0.6, 0.8, 1.0, 0.6, 0.6, 0.8, 0.7, 0.6, 0.5, 0.6, 0.7, 0.7, 0.8, 0.6, 0.6, 0.9, 0.8, 0.6, 0.8]}, "초기연분": {"rate_pct": [0.066, 0.07, 0.051, 0.064, 0.06, 0.05, 0.059, 0.059, 0.086, 0.072, 0.04, 0.072, 0.069, 0.068, 0.054, 0.063, 0.093, 0.09, 0.095, 0.099, 0.085, 0.07, 0.089, 0.076, 0.074, 0.058, 0.078, 0.094, 0.068, 0.077, 0.071, 0.088, 0.075, 0.062, 0.056, 0.077, 0.065, 0.079, 0.063, 0.075, 0.086, 0.103, 0.067, 0.071], "cost_million": [0.6, 0.7, 0.5, 0.6, 0.5, 0.5, 0.6, 0.5, 0.8, 0.7, 0.4, 0.6, 0.7, 0.7, 0.5, 0.6, 0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.8, 0.7, 0.7, 0.6, 0.8, 1.0, 0.6, 0.7, 0.7, 0.8, 0.7, 0.6, 0.5, 0.8, 0.7, 0.9, 0.6, 0.8, 0.9, 0.9, 0.6, 0.7]}, "폐극판": {"rate_pct": [0.553, 0.628, 0.456, 0.536, 0.457, 0.42, 0.583, 0.606, 0.65, 0.629, 0.431, 0.572, 0.613, 0.617, 0.549, 0.542, 0.748, 0.711, 0.907, 0.844, 0.727, 0.638, 0.72, 0.597, 0.761, 0.439, 0.622, 0.79, 0.555, 0.821, 0.792, 0.798, 0.566, 0.545, 0.621, 0.641, 0.538, 0.674, 0.552, 0.55, 0.747, 0.74, 0.587, 0.676], "cost_million": [5.4, 6.4, 4.2, 5.4, 3.9, 3.9, 5.6, 5.5, 6.0, 6.0, 3.9, 5.0, 6.4, 5.9, 5.3, 5.3, 6.4, 6.4, 8.2, 8.1, 5.9, 6.2, 6.6, 5.6, 7.4, 4.2, 6.4, 8.3, 4.8, 7.0, 7.8, 7.4, 5.1, 5.0, 6.0, 6.5, 5.7, 7.6, 5.4, 5.5, 7.6, 6.8, 5.4, 6.4]}, "폐전지": {"rate_pct": [0.505, 0.55, 0.422, 0.413, 0.411, 0.366, 0.455, 0.493, 0.614, 0.579, 0.319, 0.52, 0.46, 0.514, 0.469, 0.421, 0.662, 0.589, 0.734, 0.631, 0.598, 0.566, 0.633, 0.578, 0.518, 0.388, 0.575, 0.594, 0.461, 0.562, 0.618, 0.74, 0.448, 0.391, 0.543, 0.504, 0.437, 0.514, 0.427, 0.494, 0.625, 0.651, 0.526, 0.584], "cost_million": [4.9, 5.6, 3.8, 4.1, 3.5, 3.4, 4.4, 4.5, 5.7, 5.6, 2.9, 4.6, 4.8, 4.9, 4.6, 4.1, 5.7, 5.3, 6.6, 6.0, 4.9, 5.5, 5.8, 5.5, 5.1, 3.8, 5.9, 6.2, 4.0, 4.8, 6.1, 6.9, 4.0, 3.6, 5.2, 5.1, 4.7, 5.8, 4.2, 4.9, 6.4, 6.0, 4.8, 5.5]}}}, "창원": {"overall_rate_pct": [4.556, 3.863, 4.684, 3.25, 3.748, 5.197, 4.37, 4.124, 4.158, 3.704, 4.033, 3.208, 4.187, 4.407, 4.805, 3.705, 4.507, 4.321, 5.109, 3.683, 3.717, 3.667, 4.642, 4.505, 2.87, 3.896, 2.507, 4.302, 3.662, 4.313, 4.832, 3.881, 4.116, 3.176, 4.354, 4.608, 3.993, 4.393, 3.909, 5.001, 3.233, 2.753, 4.18, 3.341], "types": {"코드대체": {"rate_pct": [0.348, 0.208, 0.321, 0.223, 0.197, 0.476, 0.261, 0.306, 0.31, 0.252, 0.27, 0.174, 0.333, 0.282, 0.286, 0.228, 0.274, 0.293, 0.377, 0.249, 0.289, 0.268, 0.286, 0.248, 0.223, 0.299, 0.195, 0.374, 0.246, 0.33, 0.252, 0.291, 0.291, 0.199, 0.303, 0.326, 0.266, 0.287, 0.227, 0.41, 0.216, 0.188, 0.316, 0.241], "cost_million": [2.6, 1.4, 2.3, 1.5, 1.4, 3.1, 1.8, 1.8, 1.9, 1.6, 1.6, 1.1, 2.3, 1.9, 2.1, 1.4, 1.8, 1.8, 2.5, 1.5, 2.0, 1.7, 2.2, 1.6, 1.7, 2.3, 1.5, 2.6, 1.8, 2.4, 1.8, 1.7, 2.0, 1.4, 2.2, 2.0, 2.0, 1.8, 1.6, 2.9, 1.5, 1.3, 1.9, 1.6]}, "재고보정": {"rate_pct": [0.325, 0.273, 0.314, 0.223, 0.207, 0.465, 0.299, 0.291, 0.294, 0.29, 0.235, 0.194, 0.297, 0.322, 0.343, 0.225, 0.338, 0.332, 0.357, 0.278, 0.243, 0.29, 0.291, 0.309, 0.192, 0.295, 0.175, 0.313, 0.291, 0.314, 0.315, 0.275, 0.317, 0.222, 0.378, 0.345, 0.251, 0.329, 0.227, 0.318, 0.287, 0.189, 0.307, 0.259], "cost_million": [2.4, 1.8, 2.2, 1.5, 1.4, 3.0, 2.0, 1.7, 1.8, 1.8, 1.4, 1.3, 2.1, 2.2, 2.5, 1.4, 2.2, 2.0, 2.4, 1.7, 1.7, 1.8, 2.2, 2.0, 1.4, 2.3, 1.4, 2.2, 2.1, 2.3, 2.2, 1.7, 2.1, 1.6, 2.8, 2.1, 1.9, 2.1, 1.6, 2.2, 1.9, 1.3, 1.8, 1.7]}, "슬러그": {"rate_pct": [1.075, 0.945, 1.095, 0.669, 0.584, 1.41, 0.925, 0.923, 0.924, 0.785, 0.701, 0.652, 0.969, 0.924, 0.986, 0.694, 0.971, 0.687, 1.19, 0.805, 0.684, 0.878, 0.944, 0.827, 0.601, 0.88, 0.539, 0.953, 0.795, 0.925, 0.961, 1.038, 0.749, 0.735, 0.984, 0.903, 0.741, 0.965, 0.808, 0.995, 0.862, 0.529, 1.153, 0.93], "cost_million": [8.0, 6.2, 7.7, 4.5, 4.0, 9.1, 6.2, 5.4, 5.6, 4.8, 4.3, 4.3, 6.8, 6.3, 7.3, 4.2, 6.3, 4.2, 8.0, 4.9, 4.8, 5.5, 7.2, 5.4, 4.5, 6.7, 4.2, 6.5, 5.8, 6.7, 6.8, 6.2, 5.1, 5.3, 7.2, 5.5, 5.5, 6.1, 5.7, 7.0, 5.8, 3.6, 6.8, 6.0]}, "폐연호": {"rate_pct": [0.148, 0.153, 0.146, 0.118, 0.112, 0.233, 0.14, 0.152, 0.144, 0.129, 0.16, 0.084, 0.133, 0.157, 0.157, 0.113, 0.181, 0.136, 0.175, 0.12, 0.108, 0.143, 0.154, 0.14, 0.101, 0.135, 0.124, 0.179, 0.142, 0.122, 0.166, 0.18, 0.146, 0.108, 0.143, 0.15, 0.105, 0.171, 0.122, 0.142, 0.116, 0.103, 0.163, 0.122], "cost_million": [1.1, 1.0, 1.0, 0.8, 0.8, 1.5, 0.9, 0.9, 0.9, 0.8, 1.0, 0.6, 0.9, 1.1, 1.2, 0.7, 1.2, 0.8, 1.2, 0.7, 0.8, 0.9, 1.2, 0.9, 0.8, 1.0, 1.0, 1.2, 1.0, 0.9, 1.2, 1.1, 1.0, 0.8, 1.0, 0.9, 0.8, 1.1, 0.9, 1.0, 0.8, 0.7, 1.0, 0.8]}, "초기연분": {"rate_pct": [0.145, 0.129, 0.191, 0.099, 0.094, 0.2, 0.161, 0.164, 0.149, 0.166, 0.137, 0.093, 0.151, 0.166, 0.14, 0.128, 0.147, 0.151, 0.188, 0.108, 0.14, 0.13, 0.133, 0.128, 0.104, 0.157, 0.094, 0.158, 0.125, 0.115, 0.151, 0.15, 0.141, 0.103, 0.159, 0.145, 0.14, 0.15, 0.122, 0.171, 0.117, 0.096, 0.163, 0.144], "cost_million": [1.1, 0.9, 1.3, 0.7, 0.6, 1.3, 1.1, 1.0, 0.9, 1.0, 0.8, 0.6, 1.1, 1.1, 1.0, 0.8, 1.0, 0.9, 1.3, 0.7, 1.0, 0.8, 1.0, 0.8, 0.8, 1.2, 0.7, 1.1, 0.9, 0.8, 1.1, 0.9, 1.0, 0.7, 1.2, 0.9, 1.0, 0.9, 0.9, 1.2, 0.8, 0.6, 1.0, 0.9]}, "폐극판": {"rate_pct": [1.457, 1.188, 1.671, 1.145, 1.075, 1.891, 1.221, 1.341, 1.493, 1.292, 1.176, 1.024, 1.392, 1.497, 1.535, 1.089, 1.458, 1.333, 1.561, 1.068, 1.1, 1.154, 1.302, 1.359, 0.907, 1.401, 0.812, 1.487, 1.187, 1.451, 1.537, 1.279, 1.444, 1.041, 1.481, 1.317, 1.175, 1.313, 1.081, 1.549, 1.118, 0.792, 1.331, 1.057], "cost_million": [10.9, 7.8, 11.7, 7.6, 7.4, 12.2, 8.2, 7.8, 9.1, 8.0, 7.2, 6.7, 9.8, 10.3, 11.4, 6.6, 9.5, 8.1, 10.5, 6.5, 7.7, 7.2, 9.9, 8.9, 6.8, 10.7, 6.3, 10.2, 8.7, 10.5, 10.9, 7.7, 9.8, 7.5, 10.8, 8.0, 8.7, 8.2, 7.6, 10.9, 7.6, 5.4, 7.9, 6.9]}, "폐전지": {"rate_pct": [1.252, 0.977, 1.22, 0.885, 0.906, 1.541, 1.061, 1.116, 1.104, 0.952, 0.992, 0.812, 1.09, 1.217, 1.149, 0.944, 1.149, 1.111, 1.303, 0.954, 0.846, 0.978, 1.268, 1.195, 0.78, 1.073, 0.748, 1.137, 1.033, 1.065, 1.33, 1.168, 1.127, 0.76, 1.282, 1.075, 0.946, 1.139, 0.897, 1.357, 0.936, 0.682, 1.117, 0.915], "cost_million": [9.4, 6.4, 8.6, 5.9, 6.3, 10.0, 7.1, 6.5, 6.7, 5.9, 6.0, 5.3, 7.7, 8.3, 8.5, 5.7, 7.5, 6.8, 8.7, 5.8, 5.9, 6.1, 9.6, 7.8, 5.8, 8.2, 5.8, 7.8, 7.5, 7.7, 9.4, 7.0, 7.6, 5.5, 9.4, 6.5, 7.0, 7.1, 6.3, 9.5, 6.3, 4.6, 6.6, 5.9]}}}}};
+
+  // ===== 누적 저장(localStorage) — 서버가 없으므로 이 브라우저에만 저장된다 =====
+  var LS_KEY = 'lossInsightMockSeriesV1';
+  function loadPersistedSeries() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.months || !parsed.factories) return null;
+      return parsed;
+    } catch (e) { return null; }
+  }
+  function persistSeries(series) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(series)); } catch (e) { /* 저장 공간 부족 등은 무시 */ }
+  }
+  var MOCK_SERIES = loadPersistedSeries() || DEFAULT_MOCK_SERIES;
+
+  // MOCK_SERIES.months(["2023-01", ...])를 보고 연도별 개월 수를 스스로 계산한다.
+  // 업로드로 개월이 늘어나거나 새해로 넘어가도(2026-08 다음 2026-09, 나아가 2027-01) 항상 다시 계산되므로
+  // 예전처럼 YEAR_INFO를 손으로 고쳐 쓸 필요가 없다.
+  function computeYearInfo(months) {
+    var info = [];
+    months.forEach(function (m) {
+      var y = Number(m.slice(0, 4));
+      var last = info[info.length - 1];
+      if (last && last.y === y) { last.m += 1; }
+      else { info.push({ y: y, m: 1 }); }
+    });
+    return info;
+  }
+  var YEAR_INFO = computeYearInfo(MOCK_SERIES.months);
+  var TOTAL_MONTHS = MOCK_SERIES.months.length;
+
+  // 월별 미니차트 x축 라벨 — 매달 다 찍으면 겹치므로 3개월(분기 시작월)마다만 표시한다.
+  function monthlyLabels() {
+    var labels = [];
+    var i = 0;
+    YEAR_INFO.forEach(function (yi) {
+      for (var m = 1; m <= yi.m; m++) {
+        var show = i % 3 === 0;
+        labels.push(show ? (m === 1 ? String(yi.y).slice(2) + "'" : '') + m + '월' : '');
+        i++;
+      }
+    });
+    return labels;
+  }
+
+  // 축에 라벨이 너무 빽빽할 때(분기별 등) N개 중 하나만 남기고 나머지를 비운다.
+  // 값 자체(예: 챗봇 표, 판정용 points)는 그대로 두고 "차트에 그릴 라벨"만 이걸로 골라 쓴다.
+  function sparsifyLabels(labels, step) {
+    return labels.map(function (lbl, i) { return (i % step === 0) ? lbl : ''; });
+  }
+
+  // 판정 근거 문구·상단 추이 차트용 "YYYY-MM" 전체 라벨 (월별 미니차트 축의 희소 라벨과는 별개)
+  function monthlyPointLabels() {
+    var labels = [];
+    YEAR_INFO.forEach(function (yi) {
+      for (var m = 1; m <= yi.m; m++) { labels.push(String(yi.y) + '-' + (m < 10 ? '0' + m : m)); }
+    });
+    return labels;
+  }
+
+  // granularity: 'month' | 'quarter' | 'year' — 선택된 기간 단위의 {label, value} 배열로 변환
+  function pointsForGranularity(monthly, granularity) {
+    if (granularity === 'quarter') return toQuarterly(monthly);
+    if (granularity === 'year') return toYearly(monthly);
+    var labels = monthlyPointLabels();
+    return monthly.map(function (v, i) { return { label: labels[i], value: v }; });
+  }
+
+  var GRANULARITY_META = {
+    month:   { unit: '당월', prevWord: '전월', period3: '3개월',    histLabel: '최근 12개월',  priorMax: '연내 최고치', priorMaxWord: '연중', chartTitle: '월별' },
+    quarter: { unit: '당분기', prevWord: '전분기', period3: '3개 분기', histLabel: '최근 4개 분기', priorMax: '역대 최고치', priorMaxWord: '역대', chartTitle: '분기별' },
+    year:    { unit: '당해', prevWord: '전년', period3: '3개 연도',   histLabel: '최근 3개 연도',  priorMax: '역대 최고치', priorMaxWord: '역대', chartTitle: '연도별' }
+  };
+
+  function toQuarterly(monthly) {
+    var q = [], idx = 0;
+    YEAR_INFO.forEach(function (yi) {
+      var left = yi.m, qn = 0;
+      while (left > 0) {
+        var take = Math.min(3, left);
+        var slice = monthly.slice(idx, idx + take);
+        var avg = slice.reduce(function (a, b) { return a + b; }, 0) / slice.length;
+        q.push({ label: (qn === 0 ? String(yi.y).slice(2) + "'" : '') + 'Q' + (qn + 1), value: Math.round(avg * 100) / 100 });
+        idx += take; left -= take; qn++;
+      }
+    });
+    return q;
+  }
+
+  function toYearly(monthly) {
+    var y = [], idx = 0;
+    YEAR_INFO.forEach(function (yi) {
+      var slice = monthly.slice(idx, idx + yi.m);
+      var avg = slice.reduce(function (a, b) { return a + b; }, 0) / slice.length;
+      y.push({ label: String(yi.y) + (yi.m < 12 ? '(1~8월)' : ''), value: Math.round(avg * 100) / 100 });
+      idx += yi.m;
+    });
+    return y;
+  }
+
+  // costMonthly: 008 목데이터의 월별 로스금액(만원 단위) 실측 배열 — 연도별로 그대로 합산한다.
+  function toCostYearly(costMonthly) {
+    var idx = 0, out = [];
+    YEAR_INFO.forEach(function (yi) {
+      var slice = costMonthly.slice(idx, idx + yi.m);
+      var sum = slice.reduce(function (a, b) { return a + b; }, 0);
+      out.push({ label: String(yi.y) + (yi.m < 12 ? '(누적)' : ''), value: Math.round(sum) });
+      idx += yi.m;
+    });
+    return out;
+  }
+
+  // toQuarterly()와 같은 분기 구간을 쓰되, 평균이 아니라 합계를 낸다(비용은 누적되는 값이라서).
+  function toQuarterlyCost(costMonthly) {
+    var q = [], idx = 0;
+    YEAR_INFO.forEach(function (yi) {
+      var left = yi.m, qn = 0;
+      while (left > 0) {
+        var take = Math.min(3, left);
+        var slice = costMonthly.slice(idx, idx + take);
+        var sum = slice.reduce(function (a, b) { return a + b; }, 0);
+        q.push({ label: (qn === 0 ? String(yi.y).slice(2) + "'" : '') + 'Q' + (qn + 1), value: Math.round(sum) });
+        idx += take; left -= take; qn++;
+      }
+    });
+    return q;
+  }
+
+  var FMT_MANWON = function (v) { return Math.round(v).toLocaleString(); };
+  var FMT_EOKWON = function (v) { return v.toFixed(1); };
+
+  // 선택된 기간단위(월/분기/년)에 맞는 비용 시계열 하나를 돌려준다 — 카드 상세의 "발생 비용" 미니차트가 쓴다.
+  // 값 규모에 따라 단위를 자동으로 고른다: 최댓값이 1억원(=10,000만원) 미만이면 만원(정수)을,
+  // 그 이상이면 억원(소수 1자리)을 쓴다. 월별처럼 값이 작을 때 억원 고정으로 표시하면 0.0/0.1로
+  // 뭉개져 막대 높이 차이가 안 보이는 문제가 있어(사용자 피드백) 이렇게 자동 전환하도록 바꿨다.
+  function costPointsForChart(costMonthly, granularity) {
+    var raw;
+    if (granularity === 'month') {
+      raw = { labels: monthlyLabels(), values: costMonthly.slice() };
+    } else if (granularity === 'quarter') {
+      var q = toQuarterlyCost(costMonthly);
+      raw = { labels: sparsifyLabels(q.map(function (p) { return p.label; }), 2), values: q.map(function (p) { return p.value; }) };
+    } else {
+      var y = toCostYearly(costMonthly);
+      raw = { labels: y.map(function (p) { return p.label; }), values: y.map(function (p) { return p.value; }) };
+    }
+    var maxAbs = Math.max.apply(null, raw.values.map(function (v) { return Math.abs(v); })) || 0;
+    if (maxAbs >= 10000) {
+      return { labels: raw.labels, values: raw.values.map(function (v) { return Math.round(v / 1000) / 10; }), unit: '억원', fmt: FMT_EOKWON };
+    }
+    return { labels: raw.labels, values: raw.values, unit: '만원', fmt: FMT_MANWON };
+  }
+
+  // points: [{label, value}] — pointsForGranularity()가 만든, 선택된 기간 단위 시계열
+  function computeRuleEval(points, target, granularity) {
+    var vals = points.map(function (p) { return p.value; });
+    var n = vals.length;
+    var cur = vals[n - 1], prev = n >= 2 ? vals[n - 2] : cur;
+
+    // ② 통계적 관리한계: 당기 직전까지의 트레일링 윈도우 (월=12개월, 분기=4개분기, 연도=3개연도)
+    var windowSize = granularity === 'month' ? 12 : (granularity === 'quarter' ? 4 : 3);
+    var histStart = Math.max(0, (n - 1) - windowSize);
+    var hist = vals.slice(histStart, n - 1);
+    var mean = hist.length ? hist.reduce(function (a, b) { return a + b; }, 0) / hist.length : cur;
+    var variance = hist.length ? hist.reduce(function (a, b) { return a + Math.pow(b - mean, 2); }, 0) / hist.length : 0;
+    var sigma = Math.sqrt(variance);
+    var ucl = mean + 2 * sigma;
+
+    // ③ 최근 3개 구간(월/분기/연도) 연속 증가
+    var m3n = Math.min(3, n);
+    var m3 = points.slice(n - m3n);
+    var increasing3 = m3n === 3 && m3[0].value < m3[1].value && m3[1].value < m3[2].value;
+
+    // ④ 최고치 갱신: 월별은 "같은 해" 이전 개월 중 최고, 분기·연도는 "지금까지 전체 이력" 중 최고(역대)
+    var priorPoints;
+    if (granularity === 'month') {
+      var curYear = points[n - 1].label.slice(0, 4);
+      priorPoints = points.slice(0, n - 1).filter(function (p) { return p.label.slice(0, 4) === curYear; });
+    } else {
+      priorPoints = points.slice(0, n - 1);
+    }
+    var priorMax = priorPoints.length ? Math.max.apply(null, priorPoints.map(function (p) { return p.value; })) : -Infinity;
+    var priorMaxLabel = priorPoints.length ? priorPoints.filter(function (p) { return p.value === priorMax; })[0].label : '-';
+
+    return {
+      cur: cur, prev: prev, curLabel: points[n - 1].label, mean: mean, sigma: sigma, ucl: ucl,
+      m3: m3, increasing3: increasing3, priorMax: priorMax, priorMaxLabel: priorMaxLabel,
+      uslBreak: cur > target, uclBreak: hist.length > 0 && cur > ucl, newHigh: priorPoints.length > 0 && cur > priorMax
+    };
+  }
+  function fmtPct(v) { return (Math.round(v * 100) / 100).toFixed(1) + '%'; }
+
+  function reRow(no, ruleName, pass, detailHtml) {
+    return '<div class="re-row ' + (pass ? 'pass' : 'fail') + '">' +
+      '<span class="re-icon" aria-hidden="true">' + (pass ? '✓' : '–') + '</span>' +
+      '<span><span class="re-rule">' + no + ' ' + ruleName + '</span><span class="re-detail">' + detailHtml + '</span></span>' +
+      '<span class="re-verdict">' + (pass ? '해당' : '비해당') + '</span></div>';
+  }
+
+  function buildRuleEvalHtml(re, target, granularity) {
+    var g = GRANULARITY_META[granularity];
+    var rows = [];
+    rows.push(reRow('①', '규격 이탈 (USL)', re.uslBreak,
+      '기준 USL <span class="num">' + fmtPct(target) + '</span> · ' + g.unit + ' <span class="num">' + fmtPct(re.cur) + '</span> → ' +
+      (re.uslBreak ? '<span class="num">+' + fmtPct(re.cur - target) + '</span> 초과' : '한도 이내')));
+    rows.push(reRow('②', '통계적 관리한계 (UCL)', re.uclBreak,
+      '관리상한 <span class="num">' + fmtPct(re.ucl) + '</span>(' + g.histLabel + ' 평균 <span class="num">' + fmtPct(re.mean) + '</span> + 2σ) · ' + g.unit + ' <span class="num">' + fmtPct(re.cur) + '</span> → ' + (re.uclBreak ? '초과' : '이내')));
+    rows.push(reRow('③', g.period3 + ' 연속 증가', re.increasing3,
+      re.m3.map(function (p) { return fmtPct(p.value); }).join(' → ') + ' → ' + (re.increasing3 ? '연속 증가' : '증가 조건 미충족')));
+    rows.push(reRow('④', g.priorMax + ' 갱신', re.newHigh,
+      g.priorMaxWord + ' 최고 <span class="num">' + fmtPct(re.priorMax) + '</span>(' + re.priorMaxLabel + ') · ' + g.unit + ' <span class="num">' + fmtPct(re.cur) + '</span> → ' + (re.newHigh ? '갱신' : '이내')));
+    var matched = [re.uslBreak, re.uclBreak, re.increasing3, re.newHigh].filter(Boolean).length;
+    var title = matched === 4 ? '4개 기준 모두 해당' : (matched === 0 ? '4개 기준 모두 비해당 (정상 범위)' : matched + '/4개 기준 해당');
+    return '<div class="rule-eval"><div class="rule-eval-title">판정 기준 상세 (' + g.unit + ' ' + re.curLabel + ' 기준) · ' + title + '</div>' + rows.join('') + '</div>';
+  }
+
+  function svgChartBox(id, title) {
+    return '<div class="chart-box"><h4>' + title + '</h4><svg viewBox="0 0 300 140" id="' + id + '" role="img"></svg></div>';
+  }
+
+  // re(판정 결과)에서 실제로 성립한 룰만 이어붙여 자동 요약 문장을 만든다.
+  // 이전 버전처럼 항목별로 미리 써둔 서사(예: "EX1호기가 38%")를 쓰지 않는다 —
+  // 008/009 목데이터는 매번 다시 만들 수 있는 합성치라 고정 서사가 실제 값과 어긋날 수 있기 때문.
+  function autoSummary(item, re, g) {
+    var lead = g.unit + ' ' + item.typeTitle + ' 로스율은 ' + fmtPct(re.cur) + '로, 목표(' + fmtPct(item.target) + ') ' + (re.cur <= item.target ? '이내입니다.' : '를 초과했습니다.');
+    var reasons = [];
+    if (re.uslBreak) reasons.push('규격 이탈(USL)');
+    if (re.uclBreak) reasons.push('통계적 관리한계 초과');
+    if (re.increasing3) reasons.push(g.period3 + ' 연속 증가');
+    if (re.newHigh) reasons.push(g.priorMax + ' 갱신');
+    var tail = reasons.length
+      ? (' ' + reasons.join('·') + ' 조건에 해당해 이상치로 탐지되었습니다.')
+      : ' 4개 판정 기준(규격 이탈·관리한계·' + g.period3 + ' 연속 증가·' + g.priorMax + ' 갱신) 모두 비해당으로 이상치가 탐지되지 않았습니다.';
+    return lead + tail + (item.note ? (' ' + item.note) : '');
+  }
+
+  function buildCard(scope, factory, item, idx, granularity, forceOpen) {
+    var monthly = item.series;
+    var points = pointsForGranularity(monthly, granularity);
+    var re = computeRuleEval(points, item.target, granularity);
+    var g = GRANULARITY_META[granularity];
+    var matched = [re.uslBreak, re.uclBreak, re.increasing3, re.newHigh].filter(Boolean).length;
+    var isAnomaly = matched > 0;
+    var statusClass = (matched === 4 ? 'critical' : (isAnomaly ? '' : 'normal')) + (forceOpen ? ' open' : '');
+    statusClass = statusClass.trim();
+    var chipsHtml = isAnomaly
+      ? [
+          re.uslBreak ? '<span class="rule-chip hot">규격 이탈(USL)</span>' : '',
+          re.uclBreak ? '<span class="rule-chip">통계적 관리한계</span>' : '',
+          re.increasing3 ? '<span class="rule-chip">' + g.period3 + ' 연속 증가</span>' : '',
+          re.newHigh ? '<span class="rule-chip hot">' + g.priorMax + '</span>' : ''
+        ].join('')
+      : '<span class="rule-chip ok">이상치 없음</span>';
+    var vsText = re.cur <= item.target
+      ? '목표 ' + fmtPct(item.target) + ' · 이내'
+      : '목표 ' + fmtPct(item.target) + ' · +' + fmtPct(re.cur - item.target).replace('%', '%p');
+
+    var cardId = 'card-' + scope + '-' + factory + '-' + idx;
+    var ratePts = granularity === 'month'
+      ? { labels: monthlyLabels(), values: monthly }
+      : { labels: points.map(function (p) { return p.label; }), values: points.map(function (p) { return p.value; }) };
+    if (granularity === 'quarter') ratePts.labels = sparsifyLabels(ratePts.labels, 2);
+    var costPts = costPointsForChart(item.costMonthly, granularity);
+
+    var evidenceHtml =
+      '<div class="evidence-item"><div class="k">' + g.prevWord + '</div><div class="v num">' + fmtPct(re.prev) + '</div></div>' +
+      '<div class="evidence-item"><div class="k">' + g.unit + '</div><div class="v num">' + fmtPct(re.cur) + '</div></div>' +
+      '<div class="evidence-item"><div class="k">' + g.priorMax + ' 이력</div><div class="v num">' + fmtPct(re.priorMax) + ' (' + re.priorMaxLabel + ')</div></div>';
+
+    var contribHtml = item.contrib ? (
+      '<div class="contrib-block"><div class="contrib-block-title">기여도 분해</div>' +
+      item.contrib.map(function (c) {
+        return '<div class="contrib-row"><span class="name">' + c.name + '</span><div class="bar"><i style="width:' + c.pct + '%"></i></div><span class="pct num">' + c.pct + '%</span></div>';
+      }).join('') + '</div>'
+    ) : '';
+
+    var html = '' +
+      '<div class="anomaly ' + statusClass + '" id="' + cardId + '">' +
+        '<button class="anomaly-top" aria-expanded="' + (forceOpen ? 'true' : 'false') + '">' +
+          '<span class="rank num">' + (isAnomaly ? '!' : '–') + '</span>' +
+          '<span class="path">' +
+            '<span class="breadcrumb">' + item.breadcrumb + '</span>' +
+            '<span class="item">' + item.title + '</span>' +
+          '</span>' +
+          '<span class="rules">' + chipsHtml + '</span>' +
+          '<span class="metric"><div class="rate num">' + fmtPct(re.cur) + '</div><div class="vs num">' + vsText + '</div></span>' +
+          '<span class="chev" aria-hidden="true">▾</span>' +
+        '</button>' +
+        '<div class="anomaly-detail">' +
+          '<h3 class="detail-id">' + item.breadcrumb + '</h3>' +
+          buildRuleEvalHtml(re, item.target, granularity) +
+          contribHtml +
+          '<div class="detail-grid">' +
+            '<div class="charts-grid">' +
+              svgChartBox(cardId + '-rate', g.chartTitle + ' 로스율') +
+              svgChartBox(cardId + '-cost', g.chartTitle + ' 발생 비용 (' + costPts.unit + ')') +
+            '</div>' +
+            '<div class="summary-box"><span class="tag">자동 요약</span>' + autoSummary(item, re, g) + '</div>' +
+          '</div>' +
+          '<div class="evidence-row">' + evidenceHtml + '</div>' +
+          '<div class="actions">' +
+            (statusClass.indexOf('critical') !== -1 ? '<button class="btn btn-primary" type="button">소명 요청서 생성</button>' : '') +
+            '<button class="btn btn-ghost" type="button">기간축 드릴다운 (분기 → 월)</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    return { html: html, cardId: cardId, ratePts: ratePts, costPts: costPts, color: item.color, target: item.target };
+  }
+
+  function drawSeriesChart(svgId, labels, values, opts) {
+    opts = opts || {};
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    var W = 300, H = 140, padL = 30, padR = 8, padT = 10, padB = 16;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var yMax = opts.yMax || Math.max.apply(null, values.concat([opts.target || 0])) * 1.25;
+    if (!(yMax > 0)) yMax = 1;
+    function x(i) { return labels.length <= 1 ? padL + plotW / 2 : padL + (i / (labels.length - 1)) * plotW; }
+    function y(v) { return padT + plotH - (v / yMax) * plotH; }
+    var textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#858C91';
+    var gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim() || '#E3E3E2';
+    var steps = 3;
+    for (var s = 0; s <= steps; s++) {
+      var v = yMax * s / steps, yy = y(v);
+      svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: yy, y2: yy, stroke: gridColor, 'stroke-width': 1 }));
+      var t = el('text', { x: 1, y: yy + 3, 'font-size': 7, fill: textColor });
+      t.textContent = (Math.round(v * 10) / 10) + '%';
+      svg.appendChild(t);
+    }
+    if (opts.target != null) {
+      var ty = y(opts.target);
+      svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: ty, y2: ty, stroke: opts.color || '#EB3300', 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0.6 }));
+    }
+    labels.forEach(function (lb, i) {
+      if (!lb) return;
+      var t = el('text', { x: x(i), y: H - 3, 'font-size': 7, fill: textColor, 'text-anchor': 'middle' });
+      t.textContent = lb;
+      svg.appendChild(t);
+    });
+    var d = values.map(function (v, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+    svg.appendChild(el('path', { d: d, fill: 'none', stroke: opts.color || '#0097A9', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    values.forEach(function (v, i) {
+      var r = (i === values.length - 1) ? 3 : 1.6;
+      svg.appendChild(el('circle', { cx: x(i), cy: y(v), r: r, fill: opts.color || '#0097A9' }));
+    });
+  }
+
+  // valueFmt: 축 눈금·막대 위 숫자를 어떻게 표시할지(기본은 정수, 억원처럼 소수 단위가 필요하면 넘겨준다).
+  function drawBarChart(svgId, labels, values, color, valueFmt) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    valueFmt = valueFmt || function (v) { return Math.round(v).toLocaleString(); };
+    var W = 300, H = 140, padL = 34, padR = 8, padT = 10, padB = 16;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var yMax = Math.max.apply(null, values) * 1.25 || 1;
+    var textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#858C91';
+    var gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim() || '#E3E3E2';
+    var n = values.length;
+    // 막대가 많아지면(월별=최대 44개) 고정 10px 간격으로는 폭이 음수가 돼 막대가 아예 안 그려졌다 —
+    // 개수에 맞춰 간격을 줄이고, 막대 폭이 항상 최소 0.5px 이상 나오게 한다.
+    var gap = n > 20 ? 1 : (n > 10 ? 3 : 8);
+    var barW = Math.max((plotW - gap * (n - 1)) / n, 0.5);
+    // 막대 위 숫자는 개수가 많으면(월별·분기별) 서로 겹쳐 읽을 수 없으므로 연도별(4개 안팎)일 때만 표시한다.
+    var showValueLabels = n <= 12;
+    var steps = 3;
+    for (var s = 0; s <= steps; s++) {
+      var v = yMax * s / steps, yy = padT + plotH - (v / yMax) * plotH;
+      svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: yy, y2: yy, stroke: gridColor, 'stroke-width': 1 }));
+      var t = el('text', { x: 1, y: yy + 3, 'font-size': 7, fill: textColor });
+      t.textContent = valueFmt(v);
+      svg.appendChild(t);
+    }
+    values.forEach(function (v, i) {
+      var bx = padL + i * (barW + gap), bh = (v / yMax) * plotH, by = padT + plotH - bh;
+      svg.appendChild(el('rect', { x: bx, y: by, width: barW, height: Math.max(bh, 0), rx: Math.min(3, barW / 2), fill: color || '#A42400' }));
+      if (labels[i]) {
+        var lt = el('text', { x: bx + barW / 2, y: H - 3, 'font-size': 7, fill: textColor, 'text-anchor': 'middle' });
+        lt.textContent = labels[i];
+        svg.appendChild(lt);
+      }
+      if (showValueLabels) {
+        var vt = el('text', { x: bx + barW / 2, y: by - 4, 'font-size': 7, fill: textColor, 'text-anchor': 'middle' });
+        vt.textContent = valueFmt(v);
+        svg.appendChild(vt);
+      }
+    });
+  }
+
+  // 로스유형 7종 순서 및 카드 메타 — 값 자체는 전부 MOCK_SERIES(008 목데이터)에서 가져온다.
+  // contrib(기여도 분해)는 009_광주창원_공정별_폐극판폐전지발생량_목데이터의 실제 공정별 비중을 인용한 것으로,
+  // 폐극판 항목에만 근거가 있다(007 PRD §4-3 참조). 나머지 유형은 공정/자재 단위 기여도 데이터가 없어 표시하지 않는다.
+  // 코드대체는 자재 코드만 바뀌는 재분류라 로스율에 영향이 없어(순수출고차액=0에 수렴) 대시보드에는 표기하지 않는다.
+  // MOCK_SERIES.factories[x].types['코드대체']에는 여전히 값이 남아있을 수 있지만, 이 배열에서 빠졌으므로
+  // 카드 생성·업로드 집계·로스율 합산 어디에도 더는 반영되지 않는다.
+  var LOSS_TYPE_ORDER = ['재고보정', '슬러그', '폐연호', '초기연분', '폐극판', '폐전지'];
+  var FACTORY_META = {
+    gj: { name: '광주공장', mockKey: '광주', target: 2.0, color: '#0097A9' },
+    cw: { name: '창원공장', mockKey: '창원', target: 4.0, color: '#EB3300' }
+  };
+  var TYPE_EXTRA = {
+    gj: {
+      '폐극판': {
+        contrib: [
+          { name: '폐극판선별(최종 선별공정)', pct: 16.9 },
+          { name: '극판 EX8호기', pct: 4.9 },
+          { name: '2공장1차조립 22라인', pct: 4.5 },
+          { name: '그 외 25개 공정', pct: 73.7 }
+        ],
+        note: '기여도는 009 목데이터가 참조한 광주 폐극판 공정분석 원본의 실측 공정별 비중(8개월 평균)입니다.'
+      },
+      '폐전지': { note: '광주·창원 공통 폐전지 발생공정 목록은 아직 확정되지 않아(박상열_PRD.md §7-3) 공장 단위로만 집계되며, 이 카드의 수치는 실측 근거가 없는 가정치입니다(007 PRD §4-3).' }
+    },
+    cw: {
+      '폐극판': {
+        contrib: [
+          { name: '1연도 Conpaste 공통', pct: 48.0 },
+          { name: '1연도 Punched Paste 공통', pct: 19.4 },
+          { name: 'EBGC조립 AGM COS 3라인', pct: 7.0 },
+          { name: '그 외 28개 공정', pct: 25.6 }
+        ],
+        note: '기여도는 창원 폐극판 공정 분석 원본의 실측 공정별 비중(8개월 평균)이며, 창원공장의 공정 목록·품목 코드 매핑표는 아직 공식 확정되지 않았습니다(박상열_PRD.md §7-3 미해결 질문).'
+      },
+      '폐전지': { note: '창원공장은 폐전지 발생공정 매핑이 아직 확보되지 않아 공장 단위로만 집계되며, 이 카드의 수치는 실측 근거가 없는 가정치입니다(007 PRD §4-3).' }
+    }
+  };
+
+  var LOSS_ITEMS = {};
+  ['gj', 'cw'].forEach(function (factory) {
+    var fm = FACTORY_META[factory];
+    var mockFactory = MOCK_SERIES.factories[fm.mockKey];
+    LOSS_ITEMS[factory] = LOSS_TYPE_ORDER.map(function (type) {
+      var d = mockFactory.types[type];
+      var extra = (TYPE_EXTRA[factory] && TYPE_EXTRA[factory][type]) || {};
+      return {
+        key: factory + '-' + type,
+        typeTitle: type,
+        title: type + ' 로스 현황',
+        breadcrumb: fm.name + ' &gt; <b>' + type + '</b>',
+        target: fm.target,
+        color: fm.color,
+        series: d.rate_pct,
+        costMonthly: d.cost_million.map(function (v) { return Math.round(v * 100); }),
+        contrib: extra.contrib,
+        note: extra.note
+      };
+    });
+  });
+
+  function drawCardCharts(b) {
+    drawSeriesChart(b.cardId + '-rate', b.ratePts.labels, b.ratePts.values, { color: b.color, target: b.target });
+    drawBarChart(b.cardId + '-cost', b.costPts.labels, b.costPts.values, b.color, b.costPts.fmt);
+  }
+
+  function renderLossCards(factory, containerId, granularity) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var items = LOSS_ITEMS[factory];
+    var built = items.map(function (item, idx) { return buildCard('solo', factory, item, idx, granularity, false); });
+    container.innerHTML = built.map(function (b) { return b.html; }).join('');
+    built.forEach(drawCardCharts);
+  }
+
+  // 종합 탭: 광주·창원 로스유형 7종씩(총 14개)을 선택된 기간 단위 기준으로 판정해
+  // 매칭된 룰 수 → 당기 값 순으로 정렬한 뒤 상위 5개만 보여준다.
+  function renderTopAnomalies(granularity) {
+    var container = document.getElementById('anomaly-list-all');
+    if (!container) return;
+    var all = [];
+    ['gj', 'cw'].forEach(function (factory) {
+      LOSS_ITEMS[factory].forEach(function (item, idx) {
+        var monthly = item.series;
+        var points = pointsForGranularity(monthly, granularity);
+        var re = computeRuleEval(points, item.target, granularity);
+        var matched = [re.uslBreak, re.uclBreak, re.increasing3, re.newHigh].filter(Boolean).length;
+        all.push({ factory: factory, item: item, idx: idx, matched: matched, cur: re.cur });
+      });
+    });
+    all.sort(function (a, b) { return (b.matched - a.matched) || (b.cur - a.cur); });
+    var top = all.slice(0, 5);
+    var built = top.map(function (t, i) { return buildCard('all', t.factory, t.item, t.idx, granularity, i === 0); });
+    container.innerHTML = built.map(function (b) { return b.html; }).join('');
+    built.forEach(drawCardCharts);
+  }
+
+  // 상단 로스율 추이 차트 (선택된 기간 단위에 맞춰 다시 그림)
+  function drawTrendChart(svgId, seriesDefs, granularity) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var seriesPoints = seriesDefs.map(function (s) {
+      return { points: pointsForGranularity(s.monthly, granularity), color: s.color, target: s.target };
+    });
+    var axisLabels = granularity === 'month' ? monthlyLabels() : seriesPoints[0].points.map(function (p) { return p.label; });
+    if (granularity === 'quarter') axisLabels = sparsifyLabels(axisLabels, 2);
+
+    var W = 640, H = 220, padL = 34, padR = 14, padT = 14, padB = 26;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var n = seriesPoints[0].points.length;
+    var allVals = [];
+    seriesPoints.forEach(function (s) {
+      s.points.forEach(function (p) { allVals.push(p.value); });
+      if (s.target != null) allVals.push(s.target);
+    });
+    var maxV = Math.max.apply(null, allVals);
+    var yMax = Math.max(1, Math.ceil(maxV * 1.2 * 2) / 2);
+    var yMin = 0;
+
+    function x(i) { return n <= 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW; }
+    function y(v) { return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+    var textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#858C91';
+    var gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim() || '#E3E3E2';
+    var step = yMax > 5 ? 1 : 0.5;
+
+    for (var v = 0; v <= yMax + 0.001; v += step) {
+      var yy = y(v);
+      svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: yy, y2: yy, stroke: gridColor, 'stroke-width': 1 }));
+      var t = el('text', { x: 6, y: yy + 3, 'font-size': 9, fill: textColor });
+      t.textContent = (Math.round(v * 10) / 10) + '%';
+      svg.appendChild(t);
+    }
+
+    seriesPoints[0].points.forEach(function (p, i) {
+      var lbl = axisLabels[i];
+      if (!lbl) return;
+      var t = el('text', { x: x(i), y: H - 6, 'font-size': 9, fill: textColor, 'text-anchor': 'middle' });
+      t.textContent = lbl;
+      svg.appendChild(t);
+    });
+
+    seriesPoints.forEach(function (s) {
+      if (s.target != null) {
+        svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: y(s.target), y2: y(s.target), stroke: s.color, 'stroke-width': 1, 'stroke-dasharray': '4 4', opacity: 0.6 }));
+      }
+    });
+
+    seriesPoints.forEach(function (s) {
+      var d = s.points.map(function (p, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(p.value).toFixed(1); }).join(' ');
+      svg.appendChild(el('path', { d: d, fill: 'none', stroke: s.color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      s.points.forEach(function (p, i) {
+        var r = (i === s.points.length - 1) ? 4 : 2.5;
+        svg.appendChild(el('circle', { cx: x(i), cy: y(p.value), r: r, fill: s.color }));
+      });
+    });
+  }
+
+  // 공장 단위 로스율 추이(상단 차트용): MOCK_SERIES에 저장된 overall_rate_pct는 008 목데이터 생성 당시
+  // 코드대체까지 포함해 계산된 값이라 더는 그대로 쓰지 않는다. 매 렌더링 시 LOSS_TYPE_ORDER(코드대체 제외
+  // 6종)의 rate_pct 합으로 다시 계산해, 업로드로 달이 늘어나도 항상 최신 배열 길이에 맞춰 따라온다.
+  function overallFromTypes(factoryKey) {
+    var fac = MOCK_SERIES.factories[factoryKey];
+    var n = MOCK_SERIES.months.length;
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var s = 0;
+      LOSS_TYPE_ORDER.forEach(function (t) { s += fac.types[t].rate_pct[i] || 0; });
+      out.push(Math.round(s * 1000) / 1000);
+    }
+    return out;
+  }
+
+  function renderTrends(granularity) {
+    var g = GRANULARITY_META[granularity];
+    var gjMonthly = overallFromTypes('광주');
+    var cwMonthly = overallFromTypes('창원');
+    var titleText = g.chartTitle + ' 로스율 추이 (2023~2026)';
+    ['trend-all-title', 'trend-gj-title', 'trend-cw-title'].forEach(function (id) {
+      var elx = document.getElementById(id);
+      if (elx) elx.textContent = titleText;
+    });
+    drawTrendChart('trend-all', [
+      { monthly: gjMonthly, color: '#0097A9', target: 2.0 },
+      { monthly: cwMonthly, color: '#EB3300', target: 4.0 }
+    ], granularity);
+    drawTrendChart('trend-gj', [{ monthly: gjMonthly, color: '#0097A9', target: 2.0 }], granularity);
+    drawTrendChart('trend-cw', [{ monthly: cwMonthly, color: '#EB3300', target: 4.0 }], granularity);
+  }
+
+  function renderAll(granularity) {
+    renderTrends(granularity);
+    renderTopAnomalies(granularity);
+    renderLossCards('gj', 'anomaly-list-gj', granularity);
+    renderLossCards('cw', 'anomaly-list-cw', granularity);
+  }
+
+  var currentGranularity = 'month';
+  document.querySelectorAll('.gtab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.gtab').forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+      currentGranularity = btn.getAttribute('data-g');
+      renderAll(currentGranularity);
+    });
+  });
+
+  renderAll('month');
+
+  // ===== 업로드 탭: ZMMR0340/ZCOE0101/MES데이터/ZPPR0070 실제 파싱 + 누적 반영 =====
+  // 007_광주_폐극판폐전지_공정별_발생량_PRD.md §2~4에서 확인한 실측 컬럼 구조를 기준으로 한다.
+  // "정확한 로스 금액 산식"은 박상열_PRD.md §10에 여전히 미확정 항목으로 남아 있으므로,
+  // 아래 계산은 원본 파일에서 확인 가능한 컬럼만으로 구성한 최선의 근사치이며 현업 검증이 필요하다.
+
+  function num(v) { var n = Number(v); return isNaN(n) ? 0 : n; }
+
+  function findHeaderRowIndex(aoa, requiredCols) {
+    var scanRows = Math.min(aoa.length, 10);
+    for (var i = 0; i < scanRows; i++) {
+      var row = (aoa[i] || []).map(function (c) { return c == null ? '' : String(c).trim(); });
+      var hit = requiredCols.every(function (rc) { return row.indexOf(rc) !== -1; });
+      if (hit) return i;
+    }
+    return -1;
+  }
+  function aoaToObjects(aoa, headerIdx) {
+    var headers = aoa[headerIdx].map(function (c) { return c == null ? '' : String(c).trim(); });
+    var out = [];
+    for (var i = headerIdx + 1; i < aoa.length; i++) {
+      var row = aoa[i];
+      if (!row || row.every(function (c) { return c == null || c === ''; })) continue;
+      var obj = {};
+      headers.forEach(function (h, ci) { if (h) obj[h] = row[ci]; });
+      out.push(obj);
+    }
+    return out;
+  }
+  function pickSheet(wb, patterns) {
+    var name = wb.SheetNames.find(function (n) { return patterns.some(function (p) { return n.indexOf(p) !== -1; }); });
+    return wb.Sheets[name || wb.SheetNames[0]];
+  }
+  function extractRows(file, sheetPatterns, requiredCols, label) {
+    return file.arrayBuffer().then(function (buf) {
+      var wb = XLSX.read(buf, { type: 'array' });
+      var ws = pickSheet(wb, sheetPatterns);
+      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      var hIdx = findHeaderRowIndex(aoa, requiredCols);
+      if (hIdx < 0) throw new Error(label + ': 필요한 컬럼(' + requiredCols.join(', ') + ')을 가진 헤더 행을 찾지 못했습니다. 원본 시트 구조를 확인해 주세요.');
+      return aoaToObjects(aoa, hIdx);
+    });
+  }
+
+  function runUploadPipeline(files) {
+    return Promise.all([
+      extractRows(files.zmmr, ['ZMMR', '불량수량'], ['구분유형', '실제 차이금액'], 'ZMMR0340'),
+      extractRows(files.zcoe, ['ZCOE', '총 투입량'], ['자재', '출고수량합계'], 'ZCOE0101'),
+      extractRows(files.mes, ['MES'], ['귀책부서명', '품목', '불량수량'], 'MES데이터'),
+      extractRows(files.zppr, ['ZPPR'], ['자재 번호', 'BOM 구성부품'], 'ZPPR0070')
+    ]).then(function (all) {
+      var zmmrRows = all[0], zcoeRows = all[1], mesRows = all[2], zpprRows = all[3];
+
+      var priceByMaz = {};
+      zcoeRows.forEach(function (r) {
+        var maz = String(r['자재'] || '').trim();
+        if (maz) priceByMaz[maz] = num(r['평균 단가']);
+      });
+
+      var bomByItem = {};
+      zpprRows.forEach(function (r) {
+        var item = String(r['자재 번호'] || '').trim();
+        var maz = String(r['BOM 구성부품'] || '').trim();
+        var qty = r['구성부품단위로 계산된 구성부품수량'] != null ? num(r['구성부품단위로 계산된 구성부품수량']) : num(r['구성부품수량']);
+        if (!item || !maz) return;
+        (bomByItem[item] = bomByItem[item] || []).push({ maz: maz, qty: qty });
+      });
+
+      // 총 투입금액(분모) — 업로드된 ZCOE0101에 실제로 잡히는 모든 자재의 출고수량합계 × 평균 단가.
+      // 순연·경연·칼슘연(연 원자재)만으로 한정할지는 §10 미확정 — 여기서는 파일에 있는 그대로 전부 합산한다.
+      var totalInputWon = 0;
+      zcoeRows.forEach(function (r) {
+        var maz = String(r['자재'] || '').trim();
+        totalInputWon += num(r['출고수량합계']) * (priceByMaz[maz] || 0);
+      });
+
+      var typeAmounts = {};
+      function addAmount(type, amt) { typeAmounts[type] = (typeAmounts[type] || 0) + amt; }
+
+      // (a) ZMMR0340 -> 코드대체/재고보정/슬러그(+자재전표텍스트 기준 폐연호·초기연분 재분류)
+      zmmrRows.forEach(function (r) {
+        var type = String(r['구분유형'] || '').trim();
+        if (type === '슬러그') {
+          var txt = String(r['자재전표텍스트'] || '');
+          if (txt.indexOf('폐연호') !== -1) type = '폐연호';
+          else if (txt.indexOf('초기연분') !== -1) type = '초기연분';
+        }
+        if (LOSS_TYPE_ORDER.indexOf(type) === -1) return;
+        var amt = Math.abs(num(r['실제 차이금액']) || num(r['현지통화금액']));
+        addAmount(type, amt);
+      });
+
+      // (b) MES데이터 -> 폐극판(품목 SLI)/폐전지(품목 PCC·PCM) — BOM 구성부품수량 × 단가
+      var skipped = 0;
+      mesRows.forEach(function (r) {
+        var item = String(r['품목'] || '').trim();
+        var dept = String(r['귀책부서명'] || '');
+        var type = null;
+        if (item.indexOf('SLI') === 0 || dept.indexOf('폐극판선별') !== -1) type = '폐극판';
+        else if (item.indexOf('PCC') === 0 || item.indexOf('PCM') === 0) type = '폐전지';
+        if (!type) return; // 전조/카바/격리판 등 자재불량은 로스유형 7종 밖 — 007 PRD §4-2
+        var qty = num(r['불량수량']);
+        if (!qty) return;
+        var bom = bomByItem[item];
+        if (!bom) { skipped++; return; }
+        bom.forEach(function (comp) {
+          var price = priceByMaz[comp.maz];
+          if (price == null) { skipped++; return; }
+          addAmount(type, qty * comp.qty * price);
+        });
+      });
+
+      var warnings = [];
+      if (skipped > 0) warnings.push('MES데이터 중 ' + skipped + '건은 ZPPR0070(BOM) 또는 ZCOE0101(단가)에서 짝을 찾지 못해 이번 집계에서 제외했습니다.');
+      if (totalInputWon <= 0) warnings.push('ZCOE0101에서 총 투입금액을 0으로 계산했습니다 — 로스율이 0%로 표시됩니다. 파일 구조를 확인해 주세요.');
+
+      return {
+        typeAmounts: typeAmounts, totalInputWon: totalInputWon, warnings: warnings,
+        counts: { zmmr: zmmrRows.length, zcoe: zcoeRows.length, mes: mesRows.length, zppr: zpprRows.length }
+      };
+    });
+  }
+
+  // ===== 누적 반영 =====
+  function ensureMonthSlot(yearMonth) {
+    var months = MOCK_SERIES.months;
+    var idx = months.indexOf(yearMonth);
+    if (idx >= 0) return idx;
+    months.push(yearMonth);
+    idx = months.length - 1;
+    ['광주', '창원'].forEach(function (fk) {
+      var fac = MOCK_SERIES.factories[fk];
+      var carry = function (arr) { arr.push(arr.length ? arr[arr.length - 1] : 0); };
+      carry(fac.overall_rate_pct);
+      LOSS_TYPE_ORDER.forEach(function (t) { carry(fac.types[t].rate_pct); carry(fac.types[t].cost_million); });
+    });
+    return idx;
+  }
+  function applyFactoryMonth(factoryKey, idx, typeAmountsWon, totalInputWon) {
+    var fac = MOCK_SERIES.factories[factoryKey];
+    var totalLossWon = LOSS_TYPE_ORDER.reduce(function (s, t) { return s + (typeAmountsWon[t] || 0); }, 0);
+    fac.overall_rate_pct[idx] = totalInputWon > 0 ? Math.round((totalLossWon / totalInputWon * 100) * 1000) / 1000 : 0;
+    LOSS_TYPE_ORDER.forEach(function (t) {
+      var amt = typeAmountsWon[t] || 0;
+      fac.types[t].rate_pct[idx] = totalInputWon > 0 ? Math.round((amt / totalInputWon * 100) * 1000) / 1000 : 0;
+      fac.types[t].cost_million[idx] = Math.round((amt / 1000000) * 10) / 10;
+    });
+  }
+
+  function fmtWon(v) { return Math.round(v).toLocaleString('ko-KR') + '원'; }
+
+  // 다음 달 연월 문자열("2026-08" -> "2026-09", "2026-12" -> "2027-01")
+  function nextYearMonth(yearMonth) {
+    var parts = yearMonth.split('-');
+    var y = Number(parts[0]), m = Number(parts[1]) + 1;
+    if (m > 12) { m = 1; y += 1; }
+    return y + '-' + (m < 10 ? '0' + m : m);
+  }
+  // 누적 시계열은 반드시 연속된 월 순서를 유지해야 YEAR_INFO 계산이 깨지지 않는다.
+  // 이미 있는 연월(재업로드=수정)이거나, 마지막 달의 바로 다음 달일 때만 허용한다.
+  function validateYearMonth(yearMonth) {
+    var months = MOCK_SERIES.months;
+    if (months.indexOf(yearMonth) !== -1) return null; // 기존 달 재업로드(덮어쓰기) — 허용
+    var expected = nextYearMonth(months[months.length - 1]);
+    if (yearMonth !== expected) {
+      return '연월은 기존 데이터 마지막 달(' + months[months.length - 1] + ') 다음인 ' + expected + '만 새로 추가할 수 있습니다(건너뛰기 불가). 이미 있는 달을 다시 올리면 그 달 값을 덮어씁니다.';
+    }
+    return null;
+  }
+
+  function renderUploadHistory() {
+    var box = document.getElementById('upload-history');
+    if (!box) return;
+    var months = MOCK_SERIES.months;
+    box.innerHTML =
+      '<div class="compare-row" style="border-bottom:none;padding-bottom:0">' +
+        '<div><div class="cname">누적 개월 수</div><div class="csub">' + months[0] + ' ~ ' + months[months.length - 1] + '</div></div>' +
+        '<div class="cval"><span class="num">' + months.length + '</span></div>' +
+      '</div>';
+  }
+  renderUploadHistory();
+  var uploadMonthInput = document.getElementById('upload-month');
+  if (uploadMonthInput) uploadMonthInput.value = nextYearMonth(MOCK_SERIES.months[MOCK_SERIES.months.length - 1]);
+
+  var uploadForm = document.getElementById('upload-form');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      var resultBox = document.getElementById('upload-result');
+      var factoryKey = document.getElementById('upload-factory').value;
+      var yearMonth = document.getElementById('upload-month').value;
+      var files = {
+        zmmr: document.getElementById('upload-zmmr').files[0],
+        zcoe: document.getElementById('upload-zcoe').files[0],
+        mes: document.getElementById('upload-mes').files[0],
+        zppr: document.getElementById('upload-zppr').files[0]
+      };
+      if (!yearMonth || !files.zmmr || !files.zcoe || !files.mes || !files.zppr) {
+        resultBox.innerHTML = '<div class="upload-error">대상 연월과 4개 파일을 모두 선택해 주세요.</div>';
+        return;
+      }
+      var ymError = validateYearMonth(yearMonth);
+      if (ymError) {
+        resultBox.innerHTML = '<div class="upload-error">' + ymError + '</div>';
+        return;
+      }
+      if (typeof XLSX === 'undefined') {
+        resultBox.innerHTML = '<div class="upload-error">xlsx 파싱 라이브러리(SheetJS)를 불러오지 못했습니다 — 인터넷 연결을 확인해 주세요.</div>';
+        return;
+      }
+      resultBox.innerHTML = '<div class="upload-pending">처리 중…</div>';
+      runUploadPipeline(files).then(function (result) {
+        var idx = ensureMonthSlot(yearMonth);
+        applyFactoryMonth(factoryKey, idx, result.typeAmounts, result.totalInputWon);
+        YEAR_INFO = computeYearInfo(MOCK_SERIES.months);
+        TOTAL_MONTHS = MOCK_SERIES.months.length;
+        persistSeries(MOCK_SERIES);
+        renderAll(currentGranularity);
+        renderUploadHistory();
+        if (uploadMonthInput) uploadMonthInput.value = nextYearMonth(MOCK_SERIES.months[MOCK_SERIES.months.length - 1]);
+
+        var rows = LOSS_TYPE_ORDER.map(function (t) {
+          var amt = result.typeAmounts[t] || 0;
+          return '<tr><td>' + t + '</td><td>' + fmtWon(amt) + '</td></tr>';
+        }).join('');
+        var totalLossWon = LOSS_TYPE_ORDER.reduce(function (s, t) { return s + (result.typeAmounts[t] || 0); }, 0);
+        var ratePct = result.totalInputWon > 0 ? (totalLossWon / result.totalInputWon * 100) : 0;
+        resultBox.innerHTML =
+          '<div class="upload-ok">' +
+            '<b>' + factoryKey + ' ' + yearMonth + '</b> 반영 완료 (원본 행수 — ZMMR0340 ' + result.counts.zmmr + '건, ZCOE0101 ' + result.counts.zcoe + '건, MES데이터 ' + result.counts.mes + '건, ZPPR0070 ' + result.counts.zppr + '건)' +
+            '<table class="upl-table"><thead><tr><th>로스유형</th><th>계산 금액</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+            '<div style="margin-top:8px">총 로스금액 <b class="num">' + fmtWon(totalLossWon) + '</b> · 총 투입금액 <b class="num">' + fmtWon(result.totalInputWon) + '</b> · 납 로스율 <b class="num">' + ratePct.toFixed(2) + '%</b></div>' +
+            (result.warnings.length ? result.warnings.map(function (w) { return '<div class="upload-warn">⚠ ' + w + '</div>'; }).join('') : '') +
+          '</div>';
+      }).catch(function (err) {
+        resultBox.innerHTML = '<div class="upload-error">처리 실패: ' + (err && err.message ? err.message : String(err)) + '</div>';
+      });
+    });
+  }
+
+  var uploadReset = document.getElementById('upload-reset');
+  if (uploadReset) {
+    uploadReset.addEventListener('click', function () {
+      if (!confirm('업로드로 누적된 데이터를 모두 지우고 기본 목데이터(2023-01~2026-08)로 되돌릴까요?')) return;
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    });
+  }
+
+  // ===== 챗봇: 규칙 기반 질의응답 =====
+  // 자유 문장을 전부 이해하는 LLM이 아니라, 자주 쓰는 질문 패턴(기간 비교/추이/이상치/최고·최저/현재값)을
+  // 정규식으로 인식해 MOCK_SERIES(누적 데이터, LOSS_TYPE_ORDER 6종 기준)로 즉시 계산하는 방식이다.
+
+  function fmtPctChat(v) { return (Math.round(v * 100) / 100).toFixed(2) + '%'; }
+  function fmtDeltaChat(v) {
+    var s = (Math.round(Math.abs(v) * 100) / 100).toFixed(2);
+    if (v > 0.005) return '▲ ' + s + '%p 증가';
+    if (v < -0.005) return '▼ ' + s + '%p 감소';
+    return '– 변화 없음';
+  }
+  function parseYearToken(tok) {
+    var n = Number(tok);
+    return tok.length <= 2 ? 2000 + n : n;
+  }
+  // "YYYY-MM"이 데이터 범위 안에 있을 때만 인덱스로 변환 — 없으면 조용히 건너뛴다(부분 기간도 계산은 됨).
+  function monthsInRange(y1, m1, y2, m2) {
+    var out = [];
+    var y = y1, m = m1;
+    var guard = 0;
+    while ((y < y2 || (y === y2 && m <= m2)) && guard < 600) {
+      guard++;
+      var key = y + '-' + (m < 10 ? '0' + m : m);
+      var idx = MOCK_SERIES.months.indexOf(key);
+      if (idx !== -1) out.push(idx);
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return out;
+  }
+  function findAllPeriods(text) {
+    var periods = [];
+    var re;
+
+    re = /(\d{2,4})\s*년\s*(\d{1,2})\s*월?\s*[~\-]\s*(\d{1,2})\s*월/g;
+    var m;
+    while ((m = re.exec(text))) {
+      var y = parseYearToken(m[1]);
+      periods.push({ label: y + '년 ' + m[2] + '~' + m[3] + '월', idxs: monthsInRange(y, Number(m[2]), y, Number(m[3])) });
+    }
+    if (periods.length) return periods;
+
+    re = /(\d{2,4})\s*년\s*(상반기|하반기)/g;
+    while ((m = re.exec(text))) {
+      var y2 = parseYearToken(m[1]);
+      var isFirst = m[2] === '상반기';
+      periods.push({ label: y2 + '년 ' + m[2], idxs: monthsInRange(y2, isFirst ? 1 : 7, y2, isFirst ? 6 : 12) });
+    }
+    if (periods.length) return periods;
+
+    re = /(\d{2,4})\s*년(?!\s*\d)/g;
+    while ((m = re.exec(text))) {
+      var y3 = parseYearToken(m[1]);
+      periods.push({ label: y3 + '년', idxs: monthsInRange(y3, 1, y3, 12) });
+    }
+    return periods;
+  }
+  function detectFactories(text) {
+    var gj = text.indexOf('광주') !== -1, cw = text.indexOf('창원') !== -1;
+    if (gj && !cw) return ['광주'];
+    if (cw && !gj) return ['창원'];
+    return ['광주', '창원'];
+  }
+  function detectTypes(text) {
+    return LOSS_TYPE_ORDER.filter(function (t) { return text.indexOf(t) !== -1; });
+  }
+  // types가 주어지면 그 로스유형(들)의 합만, 비어있으면 코드대체 제외 6종 전체 합을 쓴다.
+  // 종합 화면의 트렌드 차트(overallFromTypes)와 챗봇의 "특정 로스유형" 질문이 같은 함수 하나로 처리된다.
+  function seriesForTypes(factory, types) {
+    var wanted = (types && types.length) ? types : LOSS_TYPE_ORDER;
+    var fac = MOCK_SERIES.factories[factory];
+    var n = MOCK_SERIES.months.length;
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var s = 0;
+      wanted.forEach(function (t) { s += fac.types[t].rate_pct[i] || 0; });
+      out.push(Math.round(s * 1000) / 1000);
+    }
+    return out;
+  }
+  function typesLabel(types) { return (types && types.length) ? types.join('+') : '코드대체 제외 6종 합산'; }
+
+  // 연도별/분기별 탭이 이미 하는 방식(월별 로스율의 단순평균)과 같은 방법으로 맞춰, 화면에 보이는
+  // 값과 챗봇 답변이 서로 어긋나지 않게 한다.
+  function avgOverIdxs(factory, idxs, types) {
+    if (!idxs.length) return null;
+    var arr = seriesForTypes(factory, types);
+    var sum = 0;
+    idxs.forEach(function (i) { sum += arr[i]; });
+    return sum / idxs.length;
+  }
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function buildComparisonAnswer(factories, p1, p2, types) {
+    if (!p1.idxs.length || !p2.idxs.length) {
+      return '두 기간 중 하나 이상 데이터가 없습니다 (' + esc(p1.label) + ': ' + p1.idxs.length + '개월, ' + esc(p2.label) + ': ' + p2.idxs.length + '개월 확보). 아직 누적되지 않은 달일 수 있습니다.';
+    }
+    var rows = factories.map(function (f) {
+      var a1 = avgOverIdxs(f, p1.idxs, types), a2 = avgOverIdxs(f, p2.idxs, types);
+      return '<tr><td>' + f + '</td><td>' + fmtPctChat(a1) + '</td><td>' + fmtPctChat(a2) + '</td><td>' + fmtDeltaChat(a2 - a1) + '</td></tr>';
+    }).join('');
+    return '<b>' + esc(p1.label) + '</b> vs <b>' + esc(p2.label) + '</b> 로스율 평균 비교 (' + typesLabel(types) + ' 기준)' +
+      '<table><thead><tr><th>공장</th><th>' + esc(p1.label) + '</th><th>' + esc(p2.label) + '</th><th>증감</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // 기간 비교에 "어느 로스유형이 가장 많이 차이나는지"까지 묻는 질문용 — 전체 비교표 아래에
+  // 로스유형 6종을 변화폭(절대값) 큰 순으로 분해해서 공장별로 보여준다.
+  function buildComparisonBreakdownAnswer(factories, p1, p2) {
+    if (!p1.idxs.length || !p2.idxs.length) {
+      return '두 기간 중 하나 이상 데이터가 없습니다 (' + esc(p1.label) + ': ' + p1.idxs.length + '개월, ' + esc(p2.label) + ': ' + p2.idxs.length + '개월 확보). 아직 누적되지 않은 달일 수 있습니다.';
+    }
+    var html = buildComparisonAnswer(factories, p1, p2, []);
+    factories.forEach(function (f) {
+      var typeDeltas = LOSS_TYPE_ORDER.map(function (t) {
+        var a1 = avgOverIdxs(f, p1.idxs, [t]);
+        var a2 = avgOverIdxs(f, p2.idxs, [t]);
+        return { type: t, a1: a1, a2: a2, delta: a2 - a1 };
+      });
+      typeDeltas.sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });
+      var top = typeDeltas[0];
+      var rows = typeDeltas.map(function (d) {
+        return '<tr><td>' + d.type + '</td><td>' + fmtPctChat(d.a1) + '</td><td>' + fmtPctChat(d.a2) + '</td><td>' + fmtDeltaChat(d.delta) + '</td></tr>';
+      }).join('');
+      html += '<div style="margin-top:10px"><b>' + f + '</b> — 로스유형별 분해(변화폭 큰 순). 가장 많이 차이난 유형: <b>' + top.type + '</b> (' + fmtDeltaChat(top.delta) + ')' +
+        '<table><thead><tr><th>로스유형</th><th>' + esc(p1.label) + '</th><th>' + esc(p2.label) + '</th><th>증감</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    });
+    return html;
+  }
+
+  function halfYearBuckets() {
+    var years = {};
+    MOCK_SERIES.months.forEach(function (mo) { years[mo.slice(0, 4)] = true; });
+    var buckets = [];
+    Object.keys(years).sort().forEach(function (y) {
+      var yn = Number(y);
+      [['상반기', 1, 6], ['하반기', 7, 12]].forEach(function (h) {
+        var idxs = monthsInRange(yn, h[1], yn, h[2]);
+        if (idxs.length) buckets.push({ label: y + '년 ' + h[0], idxs: idxs });
+      });
+    });
+    return buckets;
+  }
+
+  function buildHalfYearTrendAnswer(factories, types) {
+    var buckets = halfYearBuckets();
+    if (buckets.length < 1) return '반기 단위로 묶을 데이터가 아직 없습니다.';
+    var html = '반기별 로스율 평균 추이 (' + typesLabel(types) + ' 기준)';
+    factories.forEach(function (f) {
+      var rows = buckets.map(function (b, i) {
+        var avg = avgOverIdxs(f, b.idxs, types);
+        var prevAvg = i > 0 ? avgOverIdxs(f, buckets[i - 1].idxs, types) : null;
+        var deltaText = prevAvg == null ? '-' : fmtDeltaChat(avg - prevAvg);
+        return '<tr><td>' + esc(b.label) + '</td><td>' + fmtPctChat(avg) + '</td><td>' + deltaText + '</td></tr>';
+      }).join('');
+      html += '<div style="margin-top:10px"><b>' + f + '</b><table><thead><tr><th>반기</th><th>평균 로스율</th><th>전반기 대비</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    });
+    return html;
+  }
+
+  function buildQuarterlyTrendAnswer(factories, types) {
+    var html = '분기별 로스율 평균 추이 (' + typesLabel(types) + ' 기준, 화면의 분기별 탭과 동일한 방식)';
+    factories.forEach(function (f) {
+      var q = toQuarterly(seriesForTypes(f, types));
+      var rows = q.map(function (p, i) {
+        var deltaText = i > 0 ? fmtDeltaChat(p.value - q[i - 1].value) : '-';
+        return '<tr><td>' + esc(p.label) + '</td><td>' + fmtPctChat(p.value) + '</td><td>' + deltaText + '</td></tr>';
+      }).join('');
+      html += '<div style="margin-top:10px"><b>' + f + '</b><table><thead><tr><th>분기</th><th>평균 로스율</th><th>전분기 대비</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    });
+    return html;
+  }
+
+  function buildYearlyTrendAnswer(factories, types) {
+    var html = '연도별 로스율 평균 추이 (' + typesLabel(types) + ' 기준, 화면의 연도별 탭과 동일한 방식)';
+    factories.forEach(function (f) {
+      var y = toYearly(seriesForTypes(f, types));
+      var rows = y.map(function (p, i) {
+        var deltaText = i > 0 ? fmtDeltaChat(p.value - y[i - 1].value) : '-';
+        return '<tr><td>' + esc(p.label) + '</td><td>' + fmtPctChat(p.value) + '</td><td>' + deltaText + '</td></tr>';
+      }).join('');
+      html += '<div style="margin-top:10px"><b>' + f + '</b><table><thead><tr><th>연도</th><th>평균 로스율</th><th>전년 대비</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    });
+    return html;
+  }
+
+  function buildTypeTrendAnswer(factories, types) {
+    var html = '';
+    types.forEach(function (t) {
+      html += '<b>' + t + '</b> 로스율 추이';
+      factories.forEach(function (f) {
+        var arr = MOCK_SERIES.factories[f].types[t].rate_pct;
+        var y = toYearly(arr);
+        var rows = y.map(function (p) { return '<tr><td>' + esc(p.label) + '</td><td>' + fmtPctChat(p.value) + '</td></tr>'; }).join('');
+        html += '<div style="margin-top:8px">' + f + ' (연도별 평균)<table><thead><tr><th>연도</th><th>로스율</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      });
+    });
+    return html;
+  }
+
+  function buildCurrentMonthAnswer(factories, types) {
+    var lastLabel = MOCK_SERIES.months[MOCK_SERIES.months.length - 1];
+    var rows = factories.map(function (f) {
+      var arr = seriesForTypes(f, types);
+      var cur = arr[arr.length - 1], prev = arr.length >= 2 ? arr[arr.length - 2] : cur;
+      var targetText = (types && types.length) ? '-' : '목표 ' + (f === '광주' ? '2.0%' : '4.0%');
+      return '<tr><td>' + f + '</td><td>' + fmtPctChat(cur) + '</td><td>' + targetText + '</td><td>' + fmtDeltaChat(cur - prev) + '</td></tr>';
+    }).join('');
+    return lastLabel + ' 기준 (' + typesLabel(types) + ')' +
+      '<table><thead><tr><th>공장</th><th>로스율</th><th>목표</th><th>전월 대비</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      ((types && types.length) ? '<div style="margin-top:6px;font-size:0.75rem;color:var(--text-tertiary)">목표(2.0%/4.0%)는 로스유형 6종 합산 기준이라 특정 유형만 볼 때는 참고용입니다.</div>' : '');
+  }
+
+  function buildExtremeAnswer(factories, mode, types) {
+    var rows = factories.map(function (f) {
+      var arr = seriesForTypes(f, types);
+      var target = mode === 'max' ? -Infinity : Infinity;
+      var idx = -1;
+      arr.forEach(function (v, i) {
+        if ((mode === 'max' && v > target) || (mode === 'min' && v < target)) { target = v; idx = i; }
+      });
+      return '<tr><td>' + f + '</td><td>' + MOCK_SERIES.months[idx] + '</td><td>' + fmtPctChat(target) + '</td></tr>';
+    }).join('');
+    return (mode === 'max' ? '로스율이 가장 높았던 달' : '로스율이 가장 낮았던 달') + ' (' + typesLabel(types) + ', ' + MOCK_SERIES.months[0] + '~' + MOCK_SERIES.months[MOCK_SERIES.months.length - 1] + ' 중)' +
+      '<table><thead><tr><th>공장</th><th>연월</th><th>로스율</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function buildAnomalyAnswer(types) {
+    var wanted = (types && types.length) ? types : null;
+    var all = [];
+    ['gj', 'cw'].forEach(function (factory) {
+      LOSS_ITEMS[factory].forEach(function (item) {
+        if (wanted && wanted.indexOf(item.typeTitle) === -1) return;
+        var points = pointsForGranularity(item.series, 'month');
+        var re = computeRuleEval(points, item.target, 'month');
+        var matched = [re.uslBreak, re.uclBreak, re.increasing3, re.newHigh].filter(Boolean).length;
+        if (matched > 0) all.push({ factory: FACTORY_META[factory].name, type: item.typeTitle, cur: re.cur, matched: matched });
+      });
+    });
+    if (!all.length) return '이번 달(' + MOCK_SERIES.months[MOCK_SERIES.months.length - 1] + ') 기준으로' + (wanted ? ' ' + wanted.join('+') + '에서' : '') + ' 규격 이탈·관리한계·연속 증가·최고치 갱신 4개 판정 기준에 해당하는 이상치가 없습니다.';
+    all.sort(function (a, b) { return b.matched - a.matched || b.cur - a.cur; });
+    var rows = all.map(function (a) { return '<tr><td>' + a.factory + '</td><td>' + a.type + '</td><td>' + fmtPctChat(a.cur) + '</td><td>' + a.matched + '/4</td></tr>'; }).join('');
+    return MOCK_SERIES.months[MOCK_SERIES.months.length - 1] + ' 기준 이상치 ' + all.length + '건' +
+      '<table><thead><tr><th>공장</th><th>로스유형</th><th>당월 로스율</th><th>매칭 룰</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function buildTargetCompareAnswer(factories, types) {
+    var rows = factories.map(function (f) {
+      var arr = seriesForTypes(f, types);
+      var cur = arr[arr.length - 1];
+      var target = f === '광주' ? 2.0 : 4.0;
+      return '<tr><td>' + f + '</td><td>' + fmtPctChat(cur) + '</td><td>' + target.toFixed(1) + '%</td><td>' + (cur - target >= 0 ? '▲ +' : '▼ ') + fmtPctChat(Math.abs(cur - target)) + '</td></tr>';
+    }).join('');
+    return MOCK_SERIES.months[MOCK_SERIES.months.length - 1] + ' 목표 대비 현황 (' + typesLabel(types) + ')' +
+      '<table><thead><tr><th>공장</th><th>당월 로스율</th><th>목표</th><th>목표 대비</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      ((types && types.length) ? '<div style="margin-top:6px;font-size:0.75rem;color:var(--text-tertiary)">목표는 로스유형 6종 합산 기준이라 특정 유형만 볼 때는 참고용입니다.</div>' : '');
+  }
+
+  var FALLBACK_HTML =
+    '이해하지 못한 질문입니다. 아래처럼 물어봐 주세요:' +
+    '<ul style="margin:8px 0 0 18px;padding:0">' +
+    '<li>"25년 1~8월 누계와 26년 1~8월 누계를 비교해줘" (기간 비교, 앞에 로스유형을 붙이면 그 유형만: "슬러그 25년 1~8월과 26년 1~8월 비교해줘")</li>' +
+    '<li>"25년 1~8월과 26년 1~8월 비교해주고 가장 많이 차이나는 로스유형이 뭔지 알려줘" (비교 + 유형별 분해)</li>' +
+    '<li>"반기별로 로스율이 어떻게 흘러가고 있어?" / "분기별 추이" / "연도별 추이" (역시 앞에 로스유형을 붙일 수 있음)</li>' +
+    '<li>"폐극판 로스율 추이 알려줘" / "슬러그 로스율 얼마야" / "폐극판 목표 대비 어때" (로스유형 6종 중 하나 지정)</li>' +
+    '<li>"지금 로스율 몇이야" / "목표 대비 어때"</li>' +
+    '<li>"로스율이 제일 높았던/낮았던 달은 언제야"</li>' +
+    '<li>"이번달 이상치 있어?" (로스유형을 붙이면 그 유형만)</li>' +
+    '</ul>';
+
+  function answerChat(text) {
+    var factories = detectFactories(text);
+    var periods = findAllPeriods(text);
+    var types = detectTypes(text);
+    var isCompare = /비교|대비|vs|차이/.test(text) && periods.length >= 2;
+    var wantsBreakdown = /(가장|제일).{0,10}차이|차이.{0,10}(가장|제일)|어떤.{0,6}유형|어느.{0,6}유형|무슨.{0,6}유형/.test(text);
+
+    if (isCompare && wantsBreakdown && !types.length) return buildComparisonBreakdownAnswer(factories, periods[0], periods[1]);
+    if (isCompare) return buildComparisonAnswer(factories, periods[0], periods[1], types);
+    if (/반기/.test(text) && periods.length === 0) return buildHalfYearTrendAnswer(factories, types);
+    if (/분기/.test(text) && /추이|흐름|어떻|추세/.test(text)) return buildQuarterlyTrendAnswer(factories, types);
+    if (/연도별|연간/.test(text) && /추이|흐름|어떻|추세/.test(text)) return buildYearlyTrendAnswer(factories, types);
+    if (/이상치|이상\s*항목|이상탐지/.test(text)) return buildAnomalyAnswer(types);
+    if (/(가장|제일).{0,3}(높|최대)/.test(text)) return buildExtremeAnswer(factories, 'max', types);
+    if (/(가장|제일).{0,3}(낮|최소)/.test(text)) return buildExtremeAnswer(factories, 'min', types);
+    if (periods.length === 1) {
+      var avg0 = avgOverIdxs(factories[0], periods[0].idxs, types);
+      if (avg0 == null) return periods[0].label + ' 기간 데이터가 없습니다.';
+      var rows = factories.map(function (f) { return '<tr><td>' + f + '</td><td>' + fmtPctChat(avgOverIdxs(f, periods[0].idxs, types)) + '</td></tr>'; }).join('');
+      return periods[0].label + ' 평균 로스율 (' + typesLabel(types) + ')' +
+        '<table><thead><tr><th>공장</th><th>평균 로스율</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+    if (types.length && /추이|흐름|어떻/.test(text)) return buildTypeTrendAnswer(factories, types);
+    if (/목표|규격/.test(text)) return buildTargetCompareAnswer(factories, types);
+    if (types.length || /지금|현재|이번\s*달|최근\s*값/.test(text)) return buildCurrentMonthAnswer(factories, types);
+    return FALLBACK_HTML;
+  }
+
+  function appendChatMsg(role, html) {
+    var log = document.getElementById('chat-log');
+    if (!log) return null;
+    var div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+    div.innerHTML = html;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+  }
+
+  // ===== LLM 연동(선택) — 해석만 LLM, 계산은 항상 위의 JS 엔진 =====
+  // API 키는 localStorage에만 저장하고 서버로 보내지 않는다. 이 파일을 공유하면 키도 함께 노출될 수 있음을
+  // 설정 패널에 안내해 두었다 — 사용자가 그 위험을 감수하기로 한 개인용 로컬 데모 전제.
+  var LLM_LS_KEY = 'lossInsightLlmSettingsV1';
+  function loadLlmSettings() {
+    try {
+      var raw = localStorage.getItem(LLM_LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function saveLlmSettings(s) {
+    try { localStorage.setItem(LLM_LS_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
+  }
+  function clearLlmSettings() {
+    try { localStorage.removeItem(LLM_LS_KEY); } catch (e) { /* ignore */ }
+  }
+
+  var LLM_DEFAULT_MODEL = { anthropic: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini' };
+
+  function llmSystemPrompt() {
+    var months = MOCK_SERIES.months;
+    return '너는 제조업 재료비 로스율 대시보드의 질문 해석기다. 사용자의 자유 문장 질문을 아래 JSON 스키마로만 변환해 응답하라. ' +
+      '설명 문장이나 코드펜스 없이 JSON 객체 하나만 출력한다.\n\n' +
+      '사용 가능한 데이터 범위: ' + months[0] + ' ~ ' + months[months.length - 1] + ' (월 단위)\n' +
+      '공장: "광주", "창원" (질문에 특정 공장이 없으면 둘 다 배열에 담는다)\n' +
+      '로스유형(6종, 코드대체는 제외됨): ' + LOSS_TYPE_ORDER.join(', ') + '\n\n' +
+      '스키마:\n' +
+      '{\n' +
+      '  "intent": "compare_periods" | "compare_breakdown" | "trend_half" | "trend_quarter" | "trend_year" | "type_trend" | "current" | "target_compare" | "extreme_max" | "extreme_min" | "anomaly" | "single_period" | "unknown",\n' +
+      '  "factories": ["광주"|"창원", ...],\n' +
+      '  "types": ["재고보정"|"슬러그"|"폐연호"|"초기연분"|"폐극판"|"폐전지", ...],\n' +
+      '  "periods": [ {"label": "사람이 읽을 기간 표현", "yearStart": 2025, "monthStart": 1, "yearEnd": 2025, "monthEnd": 8}, ... ]\n' +
+      '}\n\n' +
+      '규칙: 기간을 비교하는 질문이면 intent=compare_periods이고 periods에 정확히 2개를 넣는다. ' +
+      '"상반기"는 1~6월, "하반기"는 7~12월이다. "올해"/"이번해"는 ' + months[months.length - 1].slice(0, 4) + '년, "작년"은 그 전해다. ' +
+      '연도만 언급하면 1~12월 전체로 본다. 기간 표현이 전혀 없으면 periods는 빈 배열로 둔다. ' +
+      '무엇을 원하는지 이 스키마로 표현할 수 없으면 intent="unknown"으로 답한다.\n\n' +
+      '기간을 비교하면서 "어느/어떤 로스유형이 가장 많이 차이나는지"까지 묻는 질문이면 intent=compare_breakdown을 쓰고, 이때는 types를 비워둔다(전체 6종을 자동으로 분해해서 보여준다).\n' +
+      'types는 다른 어떤 intent와도 함께 쓸 수 있다 — 질문에 특정 로스유형이 언급되면 그 유형만 types에 담아라(예: "슬러그 로스율 얼마야"는 intent=current, types=["슬러그"]). 언급이 없으면 types는 빈 배열(6종 전체 합산)로 둔다.\n\n' +
+      '예시 질문: "25년 1~8월 누계와 26년 1~8월 누계를 비교해줘" -> intent=compare_periods, periods=[{yearStart:2025,monthStart:1,yearEnd:2025,monthEnd:8},{yearStart:2026,monthStart:1,yearEnd:2026,monthEnd:8}]\n' +
+      '예시 질문: "반기별로는 로스율이 어떻게 흘러가고 있어" -> intent=trend_half, periods=[]\n' +
+      '예시 질문: "슬러그 로스율 얼마야" -> intent=current, types=["슬러그"]\n' +
+      '예시 질문: "폐극판 납로스 25년이랑 26년 반기 비교해줘" -> intent=compare_periods, types=["폐극판"], periods=[{yearStart:2025,monthStart:1,yearEnd:2025,monthEnd:6},{yearStart:2026,monthStart:1,yearEnd:2026,monthEnd:6}]\n' +
+      '예시 질문: "25년 1~8월 누계와 26년 1~8월 누계 비교해주고 가장 많이 차이나는 로스유형이 뭔지 알려줘" -> intent=compare_breakdown, types=[], periods=[{yearStart:2025,monthStart:1,yearEnd:2025,monthEnd:8},{yearStart:2026,monthStart:1,yearEnd:2026,monthEnd:8}]';
+  }
+
+  function extractJsonObject(text) {
+    var m = String(text || '').match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('응답에서 JSON을 찾지 못했습니다');
+    return JSON.parse(m[0]);
+  }
+
+  function callAnthropic(settings, question) {
+    return fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': settings.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: settings.model || LLM_DEFAULT_MODEL.anthropic,
+        max_tokens: 500,
+        system: llmSystemPrompt(),
+        messages: [{ role: 'user', content: question }]
+      })
+    }).then(function (res) {
+      if (!res.ok) return res.text().then(function (t) { throw new Error('Anthropic API 오류 ' + res.status + ': ' + t.slice(0, 200)); });
+      return res.json();
+    }).then(function (data) {
+      var text = (data.content && data.content[0] && data.content[0].text) || '';
+      return extractJsonObject(text);
+    });
+  }
+
+  function callOpenAI(settings, question) {
+    return fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + settings.apiKey },
+      body: JSON.stringify({
+        model: settings.model || LLM_DEFAULT_MODEL.openai,
+        temperature: 0,
+        messages: [{ role: 'system', content: llmSystemPrompt() }, { role: 'user', content: question }]
+      })
+    }).then(function (res) {
+      if (!res.ok) return res.text().then(function (t) { throw new Error('OpenAI API 오류 ' + res.status + ': ' + t.slice(0, 200)); });
+      return res.json();
+    }).then(function (data) {
+      var text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      return extractJsonObject(text);
+    });
+  }
+
+  function askLlm(question, settings) {
+    if (settings.provider === 'openai') return callOpenAI(settings, question);
+    return callAnthropic(settings, question);
+  }
+
+  function periodsFromLlm(periodsSpec) {
+    return (periodsSpec || []).map(function (p) {
+      var idxs = monthsInRange(Number(p.yearStart), Number(p.monthStart), Number(p.yearEnd), Number(p.monthEnd));
+      return { label: p.label || (p.yearStart + '.' + p.monthStart + '~' + p.yearEnd + '.' + p.monthEnd), idxs: idxs };
+    });
+  }
+
+  // LLM이 뽑아낸 구조화된 의도(intent)를 기존 규칙 기반 엔진과 똑같은 계산 함수로 넘긴다.
+  // 즉 LLM은 "무엇을 계산할지"만 정하고, 실제 숫자는 이 파일의 결정론적 JS가 그대로 만든다.
+  function intentToAnswer(intent) {
+    var factories = (intent.factories || []).filter(function (f) { return f === '광주' || f === '창원'; });
+    if (!factories.length) factories = ['광주', '창원'];
+    var types = (intent.types || []).filter(function (t) { return LOSS_TYPE_ORDER.indexOf(t) !== -1; });
+    var periods = periodsFromLlm(intent.periods);
+
+    switch (intent.intent) {
+      case 'compare_periods':
+        if (periods.length < 2) return null;
+        return buildComparisonAnswer(factories, periods[0], periods[1], types);
+      case 'compare_breakdown':
+        if (periods.length < 2) return null;
+        return buildComparisonBreakdownAnswer(factories, periods[0], periods[1]);
+      case 'trend_half': return buildHalfYearTrendAnswer(factories, types);
+      case 'trend_quarter': return buildQuarterlyTrendAnswer(factories, types);
+      case 'trend_year': return buildYearlyTrendAnswer(factories, types);
+      case 'type_trend':
+        if (!types.length) return null;
+        return buildTypeTrendAnswer(factories, types);
+      case 'current': return buildCurrentMonthAnswer(factories, types);
+      case 'target_compare': return buildTargetCompareAnswer(factories, types);
+      case 'extreme_max': return buildExtremeAnswer(factories, 'max', types);
+      case 'extreme_min': return buildExtremeAnswer(factories, 'min', types);
+      case 'anomaly': return buildAnomalyAnswer(types);
+      case 'single_period':
+        if (!periods.length || !periods[0].idxs.length) return null;
+        var rows = factories.map(function (f) { return '<tr><td>' + f + '</td><td>' + fmtPctChat(avgOverIdxs(f, periods[0].idxs, types)) + '</td></tr>'; }).join('');
+        return esc(periods[0].label) + ' 평균 로스율 (' + typesLabel(types) + ')' +
+          '<table><thead><tr><th>공장</th><th>평균 로스율</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      default: return null;
+    }
+  }
+
+  function updateLlmStatusBadge() {
+    var badge = document.getElementById('llm-status-badge');
+    if (!badge) return;
+    var s = loadLlmSettings();
+    if (s && s.apiKey) {
+      badge.textContent = '· LLM 연결됨 (' + s.provider + ' / ' + (s.model || LLM_DEFAULT_MODEL[s.provider]) + ')';
+    } else {
+      badge.textContent = '· 미설정 — 규칙 기반 모드로 동작 중';
+    }
+  }
+
+  function respondTo(question) {
+    appendChatMsg('user', esc(question));
+    var settings = loadLlmSettings();
+    if (!settings || !settings.apiKey) {
+      appendChatMsg('bot', '<span class="chat-mode-tag rule">규칙 기반</span><br>' + answerChat(question));
+      return;
+    }
+    var pendingDiv = appendChatMsg('bot', '<span class="chat-pending">LLM이 질문을 해석하는 중…</span>');
+    askLlm(question, settings).then(function (intent) {
+      var ans = intentToAnswer(intent);
+      if (ans == null) {
+        if (pendingDiv) pendingDiv.innerHTML = '<span class="chat-mode-tag rule">규칙 기반(LLM이 해석하지 못함)</span><br>' + answerChat(question);
+        return;
+      }
+      if (pendingDiv) pendingDiv.innerHTML = '<span class="chat-mode-tag llm">LLM 해석</span><br>' + ans;
+    }).catch(function (err) {
+      var msg = (err && err.message) ? err.message : String(err);
+      if (pendingDiv) pendingDiv.innerHTML = '<span class="chat-mode-tag rule">규칙 기반(LLM 호출 실패)</span><br>' + answerChat(question) +
+        '<div class="chat-llmerr">⚠ LLM 호출 오류: ' + esc(msg) + '</div>';
+    });
+  }
+
+  function initChat() {
+    var log = document.getElementById('chat-log');
+    if (!log) return;
+    appendChatMsg('bot', '안녕하세요! 광주·창원 로스율(코드대체 제외 6종 합산 기준) 관련 질문에 답해드립니다. 아래 예시 버튼을 눌러보거나 직접 입력해 주세요. 위 "LLM 연결 설정"에서 API 키를 등록하면 자유 문장도 이해합니다.');
+
+    document.querySelectorAll('.chat-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () { respondTo(chip.getAttribute('data-q')); });
+    });
+
+    var form = document.getElementById('chat-form');
+    var input = document.getElementById('chat-input');
+    if (form) {
+      form.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        var q = (input.value || '').trim();
+        if (!q) return;
+        respondTo(q);
+        input.value = '';
+      });
+    }
+
+    var providerSel = document.getElementById('llm-provider');
+    var modelInput = document.getElementById('llm-model');
+    var keyInput = document.getElementById('llm-api-key');
+    var existing = loadLlmSettings();
+    if (existing && providerSel && modelInput && keyInput) {
+      providerSel.value = existing.provider || 'anthropic';
+      modelInput.value = existing.model || '';
+      keyInput.value = existing.apiKey || '';
+    }
+    var saveBtn = document.getElementById('llm-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        var provider = providerSel.value;
+        var model = (modelInput.value || '').trim() || LLM_DEFAULT_MODEL[provider];
+        var apiKey = (keyInput.value || '').trim();
+        if (!apiKey) { alert('API 키를 입력해 주세요.'); return; }
+        saveLlmSettings({ provider: provider, model: model, apiKey: apiKey });
+        updateLlmStatusBadge();
+        appendChatMsg('bot', 'LLM 연결 설정을 저장했습니다 (' + provider + ' / ' + model + '). 이제부터 자유 문장으로 물어보셔도 됩니다.');
+      });
+    }
+    var clearBtn = document.getElementById('llm-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        clearLlmSettings();
+        if (keyInput) keyInput.value = '';
+        updateLlmStatusBadge();
+        appendChatMsg('bot', 'API 키를 삭제했습니다. 다시 규칙 기반 모드로 동작합니다.');
+      });
+    }
+    updateLlmStatusBadge();
+  }
+  initChat();
+
+  // 아코디언 토글 (동적 생성 카드 공통, 이벤트 위임 — 재렌더링 후에도 계속 동작)
+  document.addEventListener('click', function (evt) {
+    var btn = evt.target.closest && evt.target.closest('.anomaly-top');
+    if (!btn) return;
+    var card = btn.closest('.anomaly');
+    var isOpen = card.classList.contains('open');
+    card.classList.toggle('open', !isOpen);
+    btn.setAttribute('aria-expanded', String(!isOpen));
+  });
+
+  // 탭 전환
+  var tabs = document.querySelectorAll('.tab');
+  var panels = document.querySelectorAll('.tab-panel');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+      panels.forEach(function (p) { p.hidden = (p.getAttribute('data-panel') !== tab.getAttribute('data-tab')); });
+    });
+  });
+</script>
