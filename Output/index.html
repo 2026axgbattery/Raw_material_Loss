@@ -934,6 +934,19 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <h2 id="cost-trend-all-title">로스비용 추이 (2023~2026)</h2>
+        <div class="legend">
+          <span><i style="background:var(--accent2)"></i>광주</span>
+          <span><i style="background:var(--accent)"></i>창원</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 640 220" id="cost-trend-all" role="img" aria-label="광주·창원 공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
+      </div>
+    </div>
+
     <div class="section-title-row">
       <h2>이상 포인트 Top 5</h2>
       <span class="hint">광주·창원 통합 · 왼쪽 탭의 월별/분기별/연도별 버튼으로 판정 기준 자체를 바꿔볼 수 있습니다</span>
@@ -1040,6 +1053,18 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <h2 id="cost-trend-gj-title">로스비용 추이 (2023~2026)</h2>
+        <div class="legend">
+          <span><i style="background:var(--accent2)"></i>광주</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 640 220" id="cost-trend-gj" role="img" aria-label="광주공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
+      </div>
+    </div>
+
     <div class="section-title-row">
       <h2>광주공장 이상 포인트</h2>
       <span class="hint">로스유형 6종 전체 · 이상치 유무와 무관하게 모두 표시 · 항목을 눌러 판정 근거와 3개년 추이를 확인하세요</span>
@@ -1119,6 +1144,18 @@
           <div class="cval"><span class="num">0.5%</span></div>
         </div>
         <div class="meter"><i style="width:8.8%;background:var(--accent2)"></i></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <h2 id="cost-trend-cw-title">로스비용 추이 (2023~2026)</h2>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i>창원</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 640 220" id="cost-trend-cw" role="img" aria-label="창원공장의 2023년 1월부터 2026년 8월까지 로스비용 추이"></svg>
       </div>
     </div>
 
@@ -1410,22 +1447,43 @@
   // 값 규모에 따라 단위를 자동으로 고른다: 최댓값이 1억원(=10,000만원) 미만이면 만원(정수)을,
   // 그 이상이면 억원(소수 1자리)을 쓴다. 월별처럼 값이 작을 때 억원 고정으로 표시하면 0.0/0.1로
   // 뭉개져 막대 높이 차이가 안 보이는 문제가 있어(사용자 피드백) 이렇게 자동 전환하도록 바꿨다.
-  function costPointsForChart(costMonthly, granularity) {
-    var raw;
-    if (granularity === 'month') {
-      raw = { labels: monthlyLabels(), values: costMonthly.slice() };
-    } else if (granularity === 'quarter') {
-      var q = toQuarterlyCost(costMonthly);
-      raw = { labels: sparsifyLabels(q.map(function (p) { return p.label; }), 2), values: q.map(function (p) { return p.value; }) };
-    } else {
-      var y = toCostYearly(costMonthly);
-      raw = { labels: y.map(function (p) { return p.label; }), values: y.map(function (p) { return p.value; }) };
-    }
+  // 만원 단위의 {labels, values} 원본을 받아, 값 규모에 맞춰 만원/억원 단위를 자동으로 고른다.
+  function pickCostUnit(raw) {
     var maxAbs = Math.max.apply(null, raw.values.map(function (v) { return Math.abs(v); })) || 0;
     if (maxAbs >= 10000) {
       return { labels: raw.labels, values: raw.values.map(function (v) { return Math.round(v / 1000) / 10; }), unit: '억원', fmt: FMT_EOKWON };
     }
     return { labels: raw.labels, values: raw.values, unit: '만원', fmt: FMT_MANWON };
+  }
+
+  // 선택된 기간단위(월/분기/년)에 맞춰 만원 단위 월별 배열을 집계한 {labels, values}로 바꾼다(단위 변환 전).
+  function aggregateCostRaw(costMonthly, granularity) {
+    if (granularity === 'month') {
+      return { labels: monthlyLabels(), values: costMonthly.slice() };
+    }
+    if (granularity === 'quarter') {
+      var q = toQuarterlyCost(costMonthly);
+      return { labels: sparsifyLabels(q.map(function (p) { return p.label; }), 2), values: q.map(function (p) { return p.value; }) };
+    }
+    var y = toCostYearly(costMonthly);
+    return { labels: y.map(function (p) { return p.label; }), values: y.map(function (p) { return p.value; }) };
+  }
+
+  function costPointsForChart(costMonthly, granularity) {
+    return pickCostUnit(aggregateCostRaw(costMonthly, granularity));
+  }
+
+  // 공장의 로스유형 6종(코드대체 제외) 로스금액을 월별로 합산한 만원 단위 배열 — 상단 "로스비용 추이" 차트가 쓴다.
+  function costSeriesForFactory(factory) {
+    var fac = MOCK_SERIES.factories[factory];
+    var n = MOCK_SERIES.months.length;
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var s = 0;
+      LOSS_TYPE_ORDER.forEach(function (t) { s += (fac.types[t].cost_million[i] || 0) * 100; }); // 백만원 -> 만원
+      out.push(Math.round(s));
+    }
+    return out;
   }
 
   // points: [{label, value}] — pointsForGranularity()가 만든, 선택된 기간 단위 시계열
@@ -1823,6 +1881,64 @@
     });
   }
 
+  // 로스율 추이(drawTrendChart)와 같은 레이아웃이지만: %가 아니라 만원/억원 단위(자동 선택)이고,
+  // 목표선(USL 점선)이 없다 — 비용에는 "목표 비용" 개념이 없기 때문.
+  function drawCostTrendChart(svgId, seriesDefs, granularity) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var rawSeries = seriesDefs.map(function (s) { return aggregateCostRaw(s.costMonthly, granularity); });
+    var allVals = [];
+    rawSeries.forEach(function (r) { allVals = allVals.concat(r.values); });
+    var unitInfo = pickCostUnit({ labels: [], values: allVals });
+    var seriesPoints = seriesDefs.map(function (s, idx) {
+      var conv = unitInfo.unit === '억원' ? function (v) { return Math.round(v / 1000) / 10; } : function (v) { return v; };
+      return { values: rawSeries[idx].values.map(conv), color: s.color };
+    });
+    var axisLabels = rawSeries[0].labels;
+
+    var W = 640, H = 220, padL = 40, padR = 14, padT = 14, padB = 26;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var n = seriesPoints[0].values.length;
+    var maxV = Math.max.apply(null, seriesPoints.reduce(function (acc, s) { return acc.concat(s.values); }, [])) || 1;
+    var yMax = Math.max(unitInfo.unit === '억원' ? 0.1 : 1, maxV * 1.2);
+    var yMin = 0;
+
+    function x(i) { return n <= 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW; }
+    function y(v) { return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+    var textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#858C91';
+    var gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim() || '#E3E3E2';
+    var steps = 4;
+
+    for (var s = 0; s <= steps; s++) {
+      var v = yMax * s / steps, yy = y(v);
+      svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: yy, y2: yy, stroke: gridColor, 'stroke-width': 1 }));
+      var t = el('text', { x: 2, y: yy + 3, 'font-size': 9, fill: textColor });
+      t.textContent = unitInfo.fmt(v);
+      svg.appendChild(t);
+    }
+
+    axisLabels.forEach(function (lbl, i) {
+      if (!lbl) return;
+      var t = el('text', { x: x(i), y: H - 6, 'font-size': 9, fill: textColor, 'text-anchor': 'middle' });
+      t.textContent = lbl;
+      svg.appendChild(t);
+    });
+
+    seriesPoints.forEach(function (sp) {
+      var d = sp.values.map(function (v, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+      svg.appendChild(el('path', { d: d, fill: 'none', stroke: sp.color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      sp.values.forEach(function (v, i) {
+        var r = (i === sp.values.length - 1) ? 4 : 2.5;
+        svg.appendChild(el('circle', { cx: x(i), cy: y(v), r: r, fill: sp.color }));
+      });
+    });
+
+    return unitInfo.unit;
+  }
+
   // 공장 단위 로스율 추이(상단 차트용): MOCK_SERIES에 저장된 overall_rate_pct는 008 목데이터 생성 당시
   // 코드대체까지 포함해 계산된 값이라 더는 그대로 쓰지 않는다. 매 렌더링 시 LOSS_TYPE_ORDER(코드대체 제외
   // 6종)의 rate_pct 합으로 다시 계산해, 업로드로 달이 늘어나도 항상 최신 배열 길이에 맞춰 따라온다.
@@ -1853,6 +1969,20 @@
     ], granularity);
     drawTrendChart('trend-gj', [{ monthly: gjMonthly, color: '#0097A9', target: 2.0 }], granularity);
     drawTrendChart('trend-cw', [{ monthly: cwMonthly, color: '#EB3300', target: 4.0 }], granularity);
+
+    var gjCostMonthly = costSeriesForFactory('광주');
+    var cwCostMonthly = costSeriesForFactory('창원');
+    var unitAll = drawCostTrendChart('cost-trend-all', [
+      { costMonthly: gjCostMonthly, color: '#0097A9' },
+      { costMonthly: cwCostMonthly, color: '#EB3300' }
+    ], granularity);
+    var unitGj = drawCostTrendChart('cost-trend-gj', [{ costMonthly: gjCostMonthly, color: '#0097A9' }], granularity);
+    var unitCw = drawCostTrendChart('cost-trend-cw', [{ costMonthly: cwCostMonthly, color: '#EB3300' }], granularity);
+    var costTitleFor = function (unit) { return g.chartTitle + ' 로스비용 추이 (' + unit + ')'; };
+    [['cost-trend-all-title', unitAll], ['cost-trend-gj-title', unitGj], ['cost-trend-cw-title', unitCw]].forEach(function (pair) {
+      var elx = document.getElementById(pair[0]);
+      if (elx) elx.textContent = costTitleFor(pair[1]);
+    });
   }
 
   function renderAll(granularity) {
