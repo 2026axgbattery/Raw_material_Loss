@@ -21,3 +21,8 @@ web/.env.*.local
 # OS junk
 Thumbs.db
 .DS_Store
+
+# 실데이터(회사 내부 자료) — 절대 커밋·푸시 금지
+*원재료 로스분석*.xlsx
+*원재료 로스분석*.xls
+*원재료 로스분석*.xlsm

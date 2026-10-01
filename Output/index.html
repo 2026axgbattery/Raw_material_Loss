@@ -1,6 +1,227 @@
 <title>이상탐지 대시보드</title>
 <!-- 업로드 탭에서 xlsx를 브라우저 안에서 직접 읽기 위한 SheetJS(CDN). 인터넷 연결이 없으면 업로드 탭만 동작하지 않는다. -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script>
+// ===== LOSS ENGINE START =====
+// 업로드 탭 계산 엔진 — 광주·창원 '원재료 로스분석 (26년 8월)' 워크북의 '로스분석' 시트 산식을 이식했다.
+// 두 워크북의 자재 x 로스유형 1,170칸(수량·금액)·총 로스금액·ZMMR0340 행별 분류가 엑셀 계산값과 일치함을 확인했다.
+var LE_PREFIX = ['MC','MD','ME','MF','MK','MG','MH'];
+// 로스분석 시트의 납 자재 행(순연 5·경연 22·칼슘연 14·기타 4 = 45종). 광주·창원 워크북의 목록이 동일함을 확인함.
+var LE_LEAD_GROUPS = {"순연": ["MAZ00001", "MAZ00002", "MAZ00004", "MAZ00005", "MAZ00138"], "경연": ["MAZ00003", "MAZ00006", "MAZ00007", "MAZ00008", "MAZ00009", "MAZ00010", "MAZ00011", "MAZ00012", "MAZ00022", "MAZ00035", "MAZ00036", "MAZ00037", "MAZ00041", "MAZ00042", "MAZ00050", "MAZ00051", "MAZ00055", "MAZ00056", "MAZ00059", "MAZ09001", "MAZ09002", "MAZ09003"], "칼슘연": ["MAZ00013", "MAZ00016", "MAZ00017", "MAZ00020", "MAZ00021", "MAZ00023", "MAZ00028", "MAZ00030", "MAZ00031", "MAZ00032", "MAZ00053", "MAZ00057", "MAZ00058", "MAZ09004"], "기타": ["MAZ00015", "MAZ00018", "MAZ00019", "MAZ00139"]};
+var LE_MAT_NAMES = {"MAZ00001": "순연,3N,", "MAZ00002": "순연,4N,", "MAZ00004": "순연,3N,상신금속,HKMC용", "MAZ00005": "순연,3N PLUS,", "MAZ00138": "순연,광명단,", "MAZ00003": "경연,A30E,SE 추가", "MAZ00006": "경연,A30S,", "MAZ00007": "경연,A35,", "MAZ00008": "경연,A30,", "MAZ00009": "경연,T30,", "MAZ00010": "경연,A60,", "MAZ00011": "경연,T20,시험용", "MAZ00012": "경연,A265,", "MAZ00022": "경연,A15K,", "MAZ00035": "경연,A22,", "MAZ00036": "경연,A20,", "MAZ00037": "경연,A45,", "MAZ00041": "경연,A40(AS 0.3 WT%),", "MAZ00042": "경연,A50(AS 0.3 WT%),", "MAZ00050": "경연,A22C,CONCAST용-A22C", "MAZ00051": "경연,A18C,CONCAST용-A18C", "MAZ00055": "경연,T30G,", "MAZ00056": "경연,A26,", "MAZ00059": "[시험용]경연,T25,", "MAZ09001": "경연,A40,시험용(AS0.3)", "MAZ09002": "경연,A50,시험용(AS0.4)", "MAZ09003": "경연,A265,시험용(AS0.3)", "MAZ00013": "칼슘연,C912,", "MAZ00016": "칼슘연,C901,", "MAZ00017": "칼슘연,C715,", "MAZ00020": "칼슘모합금,C500,", "MAZ00021": "칼슘,C101,", "MAZ00023": "칼슘연,C901,(샘플)_칼슘함량 하한치", "MAZ00028": "칼슘연,C711,", "MAZ00030": "칼슘,C702,", "MAZ00031": "칼슘연,C710,", "MAZ00032": "칼슘연,C712,", "MAZ00053": "칼슘,C106,", "MAZ00057": "칼슘연,C712,(시험용 SN 1.2 WT%)", "MAZ00058": "칼슘연,C701,(시험용 SN 0.15 WT%)", "MAZ09004": "칼슘연,C901,(시험용)", "MAZ00015": "주석,SN지금,", "MAZ00018": "안티몬,SB지금,,", "MAZ00019": "안티몬합금,SB합금연,SB30%", "MAZ00139": "연분,(연분구입샘플)_L/K,"};
+// 표6(MAPPING 시트): SAP 이동유형 -> 구분유형. VLOOKUP이 대소문자를 구분하지 않으므로 소문자로 비교한다.
+var LE_MOVE_TYPE = {"933": "코드대체", "934": "코드대체", "947": "재고보정", "948": "재고보정", "949": "슬러그", "950": "슬러그", "989": "재고보정", "990": "재고보정", "y25": "BOM미구성", "y26": "BOM미구성", "701": "재고보정", "702": "재고보정", "703": "재고보정", "704": "재고보정", "707": "재고보정", "708": "재고보정", "711": "재고보정", "712": "재고보정"};
+// 표7(MAPPING 시트): 비-MAZ 자재(SBZ 용접봉·SLB 연분 등) -> 원재료 코드와 구성비. 공장별로 값이 다르다(2026-08 워크북 기준, 수기 관리표).
+var LE_BOM_MAP = {"광주":{"SBZ00003":{bom:"MAZ00001",ratio:0.9945},"SBZ00005":{bom:"MAZ00012",ratio:1.0},"SBZ00006":{bom:"MAZ00015",ratio:1.0},"SBZ00069":{bom:"MAZ00006",ratio:0.0387},"SBZ00070":{bom:"MAZ00006",ratio:0.0386},"SBZ00080":{bom:"MAZ00012",ratio:0.261},"SBZ00081":{bom:"MAZ00012",ratio:0.46},"SBZ00082":{bom:"MAZ00012",ratio:0.1},"SBZ00083":{bom:"MAZ00012",ratio:0.182},"SBZ00084":{bom:"MAZ00012",ratio:0.46},"SBZ00085":{bom:"MAZ00012",ratio:0.2},"SBZ00086":{bom:"MAZ00012",ratio:0.1},"SBZ00087":{bom:"MAZ00012",ratio:0.2},"SBZ00088":{bom:"MAZ00012",ratio:0.226},"SBZ00089":{bom:"MAZ00012",ratio:0.2},"SBZ00090":{bom:"MAZ00012",ratio:0.1},"SBZ00091":{bom:"MAZ00012",ratio:0.46},"SBZ00092":{bom:"MAZ00012",ratio:0.094},"SBZ10001":{bom:"MAZ00001",ratio:0.934579},"SLB00001":{bom:"MAZ00001",ratio:0.95057},"SLB00002":{bom:"MAZ00001",ratio:0.954199},"SLB00003":{bom:"MAZ00002",ratio:0.95057},"SLB00004":{bom:"MAZ00004",ratio:0.95057},"SLB00007":{bom:"MAZ00001",ratio:0.475285},"SLB00008":{bom:"MAZ00001",ratio:0.475285},"SLBN0009":{bom:"MAN00029",ratio:0.981085},"SLBN0010":{bom:"MAN00030",ratio:0.969744}},"창원":{"SBZ00001":{bom:"MAZ00003",ratio:1.0},"SBZ00003":{bom:"MAZ00001",ratio:0.9945},"SBZ00004":{bom:"MAZ00009",ratio:1.0},"SBZ00006":{bom:"MAZ00015",ratio:1.0},"SBZ00011":{bom:"MAZ00003",ratio:0.36},"SBZ10004":{bom:"MAZ00001",ratio:0.934579},"SBZ10005":{bom:"MAZ00001",ratio:0.93},"SLB00001":{bom:"MAZ00001",ratio:0.954198},"SLB00003":{bom:"MAZ00002",ratio:0.954198},"SLB00006":{bom:"MAZ00005",ratio:0.954198}}};
+
+
+var LE_LABELS = ['코드대체', '재고보정', '슬러그', '폐연호', '초기연분', '폐극판_취파', '폐극판_생파', '폐극판_시료', '폐전지_취파', '폐전지_생파', '폐전지_시료', '폐극판_극판선별', 'BOM미구성'];
+// 앱의 로스유형 -> 로스분석 시트 열 (폐극판 = 취파+생파+시료+극판선별, 폐전지 = 취파+생파+시료). 코드대체는 로스율에서 제외.
+var LE_APP_TYPES = {
+  '재고보정': ['재고보정'], '슬러그': ['슬러그'], '폐연호': ['폐연호'], '초기연분': ['초기연분'],
+  '폐극판': ['폐극판_취파', '폐극판_생파', '폐극판_시료', '폐극판_극판선별'],
+  '폐전지': ['폐전지_취파', '폐전지_생파', '폐전지_시료']
+};
+
+var LE = (function () {
+  var LEAD = [], LEAD_SET = {};
+  Object.keys(LE_LEAD_GROUPS).forEach(function (g) { LE_LEAD_GROUPS[g].forEach(function (m) { LEAD.push(m); LEAD_SET[m] = true; }); });
+
+  function num(v) {
+    if (v == null || v === '') return 0;
+    if (typeof v === 'number') return isNaN(v) ? 0 : v;
+    var n = Number(String(v).replace(/,/g, '').trim());
+    return isNaN(n) ? 0 : n;
+  }
+  function str(v) { return v == null ? '' : String(v).trim(); }
+  function isPrefix(code) { return LE_PREFIX.indexOf(code.slice(0, 2)) !== -1; }
+
+  // 전기일 -> {y, m}. SheetJS가 날짜를 엑셀 일련번호(숫자)·Date·문자열 중 무엇으로 주든 처리한다.
+  function ym(v) {
+    if (v == null || v === '') return null;
+    if (v instanceof Date) return isNaN(v) ? null : { y: v.getFullYear(), m: v.getMonth() + 1 };
+    if (typeof v === 'number') {
+      if (v > 19000101 && v < 21001231) { var s8 = String(Math.round(v)); return { y: Number(s8.slice(0, 4)), m: Number(s8.slice(4, 6)) }; }
+      var d = new Date(Math.round((v - 25569) * 86400000));
+      return isNaN(d) ? null : { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
+    }
+    var t = String(v).trim(), mm = t.match(/(\d{4})\D?(\d{1,2})/);
+    return mm ? { y: Number(mm[1]), m: Number(mm[2]) } : null;
+  }
+
+  function findHeader(aoa, required) {
+    var scan = Math.min(aoa.length, 15);
+    for (var i = 0; i < scan; i++) {
+      var row = (aoa[i] || []).map(str);
+      if (required.every(function (rc) { return row.indexOf(rc) !== -1; })) return i;
+    }
+    return -1;
+  }
+  function headerInfo(aoa, required, label) {
+    var h = findHeader(aoa, required);
+    if (h < 0) throw new Error(label + ': 필요한 컬럼(' + required.join(', ') + ')을 가진 헤더 행을 찾지 못했습니다. 원본 시트 구조를 확인해 주세요.');
+    var names = aoa[h].map(str);
+    return {
+      row: h, names: names,
+      all: function (n) { var r = []; names.forEach(function (x, i) { if (x === n) r.push(i); }); return r; },
+      first: function (n) { return names.indexOf(n); },
+      last: function (n) { return names.lastIndexOf(n); }
+    };
+  }
+  function eachRow(aoa, h, fn) {
+    for (var i = h.row + 1; i < aoa.length; i++) {
+      var r = aoa[i];
+      if (!r || r.every(function (c) { return c == null || c === ''; })) continue;
+      fn(r, i);
+    }
+  }
+
+  // ---- ZMMR0340: 이동유형 -> 구분, 비율·원재료코드(BOM 환산), 로스양 ----
+  function compute(inputs, opts) {
+    var factory = opts.factory, year = opts.year, month = opts.month;
+    var warnings = [];
+    var bomMap = {};
+    var base = LE_BOM_MAP[factory] || {};
+    Object.keys(base).forEach(function (k) { bomMap[k] = base[k]; });
+    if (opts.bomMapOverride) Object.keys(opts.bomMapOverride).forEach(function (k) { bomMap[k] = opts.bomMapOverride[k]; });
+    function mapOf(code) { return bomMap[code] || null; }
+
+    // ---- ZPPR0070: (자재 번호|BOM 구성부품) -> 구성부품수량 합 (SUMIFS 동일) ----
+    var hp = headerInfo(inputs.zppr, ['자재 번호', 'BOM 구성부품'], 'ZPPR0070');
+    var qCol = hp.first('구성부품단위로 계산된 구성부품수량'); if (qCol < 0) qCol = hp.first('구성부품수량');
+    if (qCol < 0) throw new Error('ZPPR0070: 구성부품수량 컬럼을 찾지 못했습니다.');
+    var cItem = hp.first('자재 번호'), cBom = hp.first('BOM 구성부품');
+    var bomByItem = {}, zpprCount = 0;
+    eachRow(inputs.zppr, hp, function (r) {
+      var item = str(r[cItem]), maz = str(r[cBom]);
+      if (!item || !maz) return;
+      zpprCount++;
+      var o = bomByItem[item] || (bomByItem[item] = {});
+      o[maz] = (o[maz] || 0) + num(r[qCol]);
+    });
+
+    // ---- ZCOE0101: 평균 단가 = 출고금액합계 ÷ 출고수량합계 (월 기준, 자재 코드별·접두 그룹별) ----
+    var hc = headerInfo(inputs.zcoe, ['자재', '출고수량합계', '출고금액합계'], 'ZCOE0101');
+    var cMat = hc.first('자재'), cQ = hc.first('출고수량합계'), cA = hc.first('출고금액합계'), cPer = hc.first('전기 기간'), cYr = hc.first('연도');
+    var outQty = {}, outAmt = {}, zcoeUsed = 0, zcoeOther = 0;
+    eachRow(inputs.zcoe, hc, function (r) {
+      var mat = str(r[cMat]); if (!mat) return;
+      var per = cPer >= 0 ? num(r[cPer]) : month;
+      var yr = cYr >= 0 ? num(r[cYr]) : 0;
+      if (per !== month || (yr && yr !== year)) { zcoeOther++; return; }
+      var key = isPrefix(mat) ? mat.slice(0, 2) : mat;
+      outQty[key] = (outQty[key] || 0) + num(r[cQ]);
+      outAmt[key] = (outAmt[key] || 0) + num(r[cA]);
+      zcoeUsed++;
+    });
+    if (!zcoeUsed) throw new Error('ZCOE0101: ' + year + '년 ' + month + '월 데이터가 없습니다(전기 기간/연도 컬럼 확인). 다른 달 행 ' + zcoeOther + '건.');
+    function price(key) { return outQty[key] ? outAmt[key] / outQty[key] : 0; }
+    var denominator = 0;
+    LEAD.forEach(function (m) { denominator += outQty[m] || 0; });
+    // 분모 가산(수기 보정): 창원 워크북은 '광주 1세대 극판' 시트의 납 사용량(MAZ00001·MAZ00032, kg)을 분모에 더한다.
+    // 이 값은 ZCOE0101(ROH·ZRO1·ZRO2)에 없는 별도 집계라 4개 파일만으로는 재현되지 않으므로 선택 입력으로 받는다.
+    var adjApplied = 0;
+    if (opts.denomAdjust) Object.keys(opts.denomAdjust).forEach(function (m) {
+      var v = num(opts.denomAdjust[m]);
+      if (v && LEAD_SET[m]) { denominator += v; adjApplied += v; }
+    });
+    if (factory === '창원' && !adjApplied) warnings.push('창원: 로스율 분모에 "광주 1세대 극판" 납 사용량 가산분이 입력되지 않았습니다. 기존 엑셀 기준으로는 이 가산분이 포함되므로, 입력하지 않으면 로스율이 높게(약 0.5%p) 나옵니다.');
+
+    // ---- ZMMR0340 ----
+    var hz = headerInfo(inputs.zmmr, ['자재코드(FROM)', '자재코드(TO)', '전기일', '이동유형', '차이수량'], 'ZMMR0340');
+    var qs = hz.all('수량');
+    var iQF = qs.length ? qs[0] : -1, iQT = qs.length > 1 ? qs[1] : hz.first('수량4');
+    if (iQF < 0 || iQT < 0) throw new Error('ZMMR0340: 수량(FROM)/수량(TO) 컬럼을 찾지 못했습니다.');
+    var iFrom = hz.first('자재코드(FROM)'), iTo = hz.first('자재코드(TO)'), iDate = hz.first('전기일'), iMv = hz.last('이동유형'),
+        iDiff = hz.first('차이수량'), iTxt = hz.first('자재전표텍스트'), iUser = hz.first('사용자이름');
+    var qty = {}; LE_LABELS.forEach(function (l) { qty[l] = {}; });
+    function addQ(label, maz, v) { qty[label][maz] = (qty[label][maz] || 0) + v; }
+    var unknownMove = {}, unmapped = {}, reclass = { '폐연호': 0, '초기연분': 0 }, zmmrUsed = 0, zmmrOther = 0, dbg = [];
+    eachRow(inputs.zmmr, hz, function (r, ri) {
+      var from = str(r[iFrom]); if (!from) return;
+      var d = ym(r[iDate]);
+      if (!d || d.m !== month || d.y !== year) { zmmrOther++; return; }
+      var mv = str(r[iMv]).toLowerCase();
+      var gubun = LE_MOVE_TYPE[mv];
+      if (!gubun) { unknownMove[mv || '(빈 값)'] = (unknownMove[mv || '(빈 값)'] || 0) + 1; return; }
+      var txt = iTxt >= 0 ? str(r[iTxt]) : '';
+      // 시트 메모 규칙: 상대연 출고(슬러그) 중 SLB 연분은 자재전표텍스트로 폐연호/초기연분 재분류, SBZ10005 광명단은 폐연호
+      if (gubun === '슬러그') {
+        if (from === 'SBZ10005') gubun = '폐연호';
+        else if (from.indexOf('SLB') === 0 || from.indexOf('SBZ') === 0) {
+          if (txt.indexOf('폐연호') !== -1) gubun = '폐연호';
+          else if (txt.indexOf('초기연분') !== -1) gubun = '초기연분';
+        }
+        if (gubun !== '슬러그') reclass[gubun]++;
+      }
+      var pre = isPrefix(from), mp = pre ? null : mapOf(from);
+      var rawCode = pre ? from.slice(0, 2) : (mp ? mp.bom : from);
+      var ratio = mp ? num(mp.ratio) : 1;
+      var loss = (gubun === '코드대체' ? -num(r[iQF]) : -num(r[iDiff])) * ratio;
+      var to = str(r[iTo]), tmp = mapOf(to), toRaw = tmp ? tmp.bom : to;
+      var subCode = (toRaw.slice(0, 3).toLowerCase() === 'maz') ? toRaw : rawCode;
+      var subLoss = gubun === '코드대체' ? -num(r[iQT]) * ratio : 0;
+      zmmrUsed++;
+      if (dbg) dbg.push([ri, gubun, rawCode, ratio, loss, subCode, subLoss]);
+      if (!pre && !mp && from.slice(0, 3) !== 'MAZ') { var u = unmapped[from] || (unmapped[from] = { n: 0, q: 0 }); u.n++; u.q += loss; }
+      if (LEAD_SET[rawCode]) addQ(gubun, rawCode, loss);
+      if (gubun === '코드대체' && LEAD_SET[subCode]) addQ('코드대체', subCode, subLoss);
+    });
+
+    // ---- MES: 폐극판/폐전지 불량수량 -> 납 자재별 수량 (불량수량 × BOM 구성부품수량 ÷ 1000) ----
+    var hm = headerInfo(inputs.mes, ['월', '불량내용명', '품목', '불량수량'], 'MES데이터');
+    var iM = hm.first('월'), iName = hm.first('불량내용명'), iItem = hm.first('품목'), iBad = hm.first('불량수량');
+    var mesUsed = 0, mesOther = 0, noBom = {}, nonLeadEA = {};
+    eachRow(inputs.mes, hm, function (r) {
+      var item = str(r[iItem]); if (!item) return;
+      if (num(r[iM]) !== month) { mesOther++; return; }
+      var name = str(r[iName]), bad = num(r[iBad]);
+      var g = isPrefix(item) ? item.slice(0, 2) : item;
+      var detail = g.charAt(0) === 'P' ? '폐전지_' + name : g.charAt(0) === 'S' ? '폐극판_' + name : name;
+      mesUsed++;
+      var label = LE_LABELS.indexOf(detail) !== -1 ? detail : (name === 'BOM미구성' ? 'BOM미구성' : null);
+      if (!label) return;
+      var comp = bomByItem[g];
+      if (LEAD_SET[g]) addQ(label, g, bad);          // 자재 코드 자체가 불량(구분 = 자재)
+      else if (comp) { Object.keys(comp).forEach(function (maz) { if (LEAD_SET[maz]) addQ(label, maz, comp[maz] * bad / 1000); }); }
+      else if (!isPrefix(item)) { noBom[g] = (noBom[g] || 0) + 1; }
+    });
+
+    // ---- 금액 = 수량 × 평균 단가 ----
+    var amt = {}, typeQty = {}, typeAmt = {};
+    LE_LABELS.forEach(function (l) {
+      amt[l] = {}; typeQty[l] = 0; typeAmt[l] = 0;
+      Object.keys(qty[l]).forEach(function (m) { var a = qty[l][m] * price(m); amt[l][m] = a; typeQty[l] += qty[l][m]; typeAmt[l] += a; });
+    });
+    var summary = {}, totalQty = 0, totalAmt = 0;
+    Object.keys(LE_APP_TYPES).forEach(function (t) {
+      var q = 0, a = 0; LE_APP_TYPES[t].forEach(function (l) { q += typeQty[l]; a += typeAmt[l]; });
+      summary[t] = { qty: q, amt: a, ratePct: denominator > 0 ? q / denominator * 100 : 0 };
+      totalQty += q; totalAmt += a;
+    });
+
+    // ---- 경고 ----
+    var uk = Object.keys(unknownMove); if (uk.length) warnings.push('ZMMR0340: 이동유형 매핑표에 없는 값 ' + uk.map(function (k) { return k + '(' + unknownMove[k] + '건)'; }).join(', ') + ' — 이번 집계에서 제외했습니다.');
+    var um = Object.keys(unmapped); if (um.length) warnings.push('ZMMR0340: 원재료(MAZ)로 환산하는 BOM 환산표에 없는 자재 ' + um.map(function (k) { return k + '(' + unmapped[k].n + '건)'; }).join(', ') + ' — 납 로스에서 제외됐습니다. 환산표(MAPPING) 파일을 올려 주세요.');
+    var nb = Object.keys(noBom); if (nb.length) warnings.push('MES데이터: ZPPR0070에 BOM이 없는 품목 ' + nb.slice(0, 8).join(', ') + (nb.length > 8 ? ' 외 ' + (nb.length - 8) + '종' : '') + ' — 납 환산에서 제외됐습니다.');
+    if (typeQty['BOM미구성']) warnings.push('로스유형 "BOM미구성" 수량 ' + Math.round(typeQty['BOM미구성']) + 'kg는 앱의 7종 분류에 없어 로스율에 포함하지 않았습니다.');
+    if (zmmrOther) warnings.push('ZMMR0340: 대상 월(' + year + '-' + (month < 10 ? '0' : '') + month + ')이 아닌 행 ' + zmmrOther + '건은 제외했습니다.');
+    if (mesOther) warnings.push('MES데이터: 대상 월이 아닌 행 ' + mesOther + '건은 제외했습니다.');
+    if (denominator <= 0) warnings.push('납 총 투입량이 0입니다 — ZCOE0101에 납 자재(MAZ) 출고수량이 잡히지 않았습니다.');
+
+    return {
+      price: (function () { var p = {}; LEAD.forEach(function (m) { p[m] = price(m); }); LE_PREFIX.forEach(function (k) { p[k] = price(k); }); return p; })(),
+      denominator: denominator, qty: qty, amt: amt, typeQty: typeQty, typeAmt: typeAmt, summary: summary,
+      totalQty: totalQty, totalAmt: totalAmt, totalRatePct: denominator > 0 ? totalQty / denominator * 100 : 0,
+      reclass: reclass, warnings: warnings, debugRows: dbg, denomAdjust: adjApplied,
+      counts: { zmmr: zmmrUsed, zcoe: zcoeUsed, mes: mesUsed, zppr: zpprCount }
+    };
+  }
+  return { compute: compute, LEAD: LEAD, ym: ym };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = { LE: LE, LE_LABELS: LE_LABELS, LE_APP_TYPES: LE_APP_TYPES };
+// ===== LOSS ENGINE END =====
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -1227,21 +1448,32 @@
             <input type="month" id="upload-month" min="2023-01" required>
           </label>
           <label class="upl-field">
-            <span>ZMMR0340 — 불량수량 원장(재고보정·슬러그, 코드대체는 로스율 계산에서 제외)</span>
+            <span>ZMMR0340 — 불량수량 원장(이동유형 947·948·989·990·949 등, 전기일 당월)</span>
             <input type="file" id="upload-zmmr" accept=".xlsx,.xls">
           </label>
           <label class="upl-field">
-            <span>ZCOE0101 — 총 투입량·평균 단가</span>
+            <span>ZCOE0101 — 총 투입량·출고금액(ROH·ZRO1·ZRO2, 평균 단가 산출)</span>
             <input type="file" id="upload-zcoe" accept=".xlsx,.xls">
           </label>
           <label class="upl-field">
-            <span>MES데이터 — 폐극판·폐전지 부적합실적조회</span>
+            <span>MES데이터 — 부적합현황 &gt; 부적합실적조회(폐극판·폐전지)</span>
             <input type="file" id="upload-mes" accept=".xlsx,.xls">
           </label>
           <label class="upl-field">
-            <span>ZPPR0070 — BOM 구성부품</span>
+            <span>ZPPR0070 — BOM 구성부품(MES 불량수량을 납 자재로 환산)</span>
             <input type="file" id="upload-zppr" accept=".xlsx,.xls">
           </label>
+          <label class="upl-field">
+            <span>환산표(MAPPING) — 선택. 비-MAZ 자재(SBZ·SLB 등) → 원재료 환산. 올리지 않으면 2026-08 워크북 기준 내장표를 씁니다</span>
+            <input type="file" id="upload-map" accept=".xlsx,.xls">
+          </label>
+          <div class="upl-field" id="upload-adj-box" hidden>
+            <span>창원 전용(선택) — 광주 1세대 극판 납 사용량(kg): 로스율 분모에 가산합니다</span>
+            <div style="display:flex;gap:8px">
+              <input type="number" id="upload-adj-1" step="any" placeholder="순연 MAZ00001 kg" style="flex:1">
+              <input type="number" id="upload-adj-2" step="any" placeholder="칼슘연 MAZ00032 kg" style="flex:1">
+            </div>
+          </div>
           <div class="actions" style="margin-top:4px">
             <button class="btn btn-primary" type="submit">처리 및 누적 반영</button>
           </div>
@@ -1257,10 +1489,11 @@
         </div>
         <div class="summary-box" style="margin-top:16px">
           <span class="tag">계산 방식(요약)</span>
-          재고보정·슬러그(+텍스트 기준 폐연호·초기연분 재분류)는 ZMMR0340의 <b>구분유형</b>·<b>실제 차이금액</b>을 그대로 합산합니다. 코드대체는 자재 코드만 바뀌는 재분류일 뿐 실손실이 아니라서(로스율에 영향 없음) 집계에서 제외합니다.
-          폐극판(품목 SLI)·폐전지(품목 PCC/PCM)는 MES데이터 <b>불량수량</b> × ZPPR0070 <b>BOM 구성부품수량</b> × ZCOE0101 <b>평균 단가</b>로 환산합니다.
-          분모(총 투입금액)는 ZCOE0101 <b>출고수량합계 × 평균 단가</b> 합계입니다.
-          007_광주_폐극판폐전지_공정별_발생량_PRD.md에서 확인한 원본 구조를 최대한 따른 근사치이며, <b>정확한 로스 금액 산식은 박상열_PRD.md §10에서 여전히 미확정</b>이므로 실사용 전 현업 검증이 필요합니다.
+          광주·창원 <b>'원재료 로스분석' 엑셀의 '로스분석' 시트 산식</b>을 그대로 옮겼습니다. 납 자재(순연·경연·칼슘연·기타 45종)별로 <b>로스 수량(kg) × 해당 월 평균 단가(출고금액합계 ÷ 출고수량합계)</b>를 구합니다.
+          재고보정·슬러그·코드대체는 ZMMR0340의 <b>이동유형</b>으로 분류하고(상대연 출고 중 SLB 연분은 자재전표텍스트로 폐연호·초기연분 재분류, SBZ10005 광명단은 폐연호), 비-MAZ 자재는 환산표로 원재료 수량에 환산합니다.
+          폐극판(SLI…)·폐전지(PCC·PCM…)는 MES <b>불량수량</b> × ZPPR0070 <b>BOM 구성부품수량</b> ÷ 1000으로 환산합니다.
+          <b>로스율 = 납 로스 수량(kg) ÷ 납 총 투입량(kg)</b>이며 코드대체(재분류)는 제외합니다. 창원은 엑셀처럼 '광주 1세대 극판' 납 사용량을 분모에 더할 수 있습니다(선택 입력).
+          광주 8월·창원 8월 워크북과 대조해 자재 × 로스유형 1,170칸이 일치함을 확인했지만, <b>실사용 전 현업 검증</b>은 필요합니다(박상열_PRD.md §10 정확한 산식 미확정).
         </div>
       </div>
     </div>
@@ -1322,7 +1555,7 @@
   </section>
 
   <footer>
-    <span>데이터 기준: 008/009_광주창원_..._목데이터_2023-2026.xlsx (2026-09-25 생성, 007 PRD 기준 합성) · 2026-08 업로드 가정 · 재료비 총액 대비 정합성 오차 0.6%p</span>
+    <span id="data-basis">데이터 기준: 008/009_광주창원_..._목데이터_2023-2026.xlsx (2026-09-25 생성, 007 PRD 기준 합성) · 2026-08 업로드 가정 · 재료비 총액 대비 정합성 오차 0.6%p</span>
     <span>Loss Insight MVP · FR-4 이상치 탐지 · FR-5 드릴다운 분석</span>
   </footer>
 
@@ -1870,6 +2103,8 @@
   };
 
   var LOSS_ITEMS = {};
+  // 업로드로 시계열이 바뀌면 costMonthly(복사본)도 다시 만들어야 하므로 함수로 둔다.
+  function buildLossItems() {
   ['gj', 'cw'].forEach(function (factory) {
     var fm = FACTORY_META[factory];
     var mockFactory = MOCK_SERIES.factories[fm.mockKey];
@@ -1890,6 +2125,8 @@
       };
     });
   });
+  }
+  buildLossItems();
 
   function drawCardCharts(b) {
     drawSeriesChart(b.cardId + '-rate', b.ratePts.labels, b.ratePts.values, { color: b.color, target: b.target });
@@ -2109,7 +2346,99 @@
     renderCostBreakdown('cost-breakdown-cw', 'cost-breakdown-cw-title', ['창원'], granularity);
   }
 
+  // ===== KPI 카드·공장별 관리 현황: 누적 시계열의 최신 월 값으로 갱신 =====
+  // (예전에는 HTML에 고정된 문구여서 업로드해도 숫자가 바뀌지 않았다.)
+  function fmtManwon(v) { return Math.round(v).toLocaleString('ko-KR') + '만원'; }
+  function ymKo(ym) { var p = ym.split('-'); return p[0] + '년 ' + Number(p[1]) + '월'; }
+  function setKpi(panel, idx, parts) {
+    var grid = document.querySelector('[data-panel="' + panel + '"] .kpi-grid');
+    var k = grid && grid.querySelectorAll('.kpi')[idx];
+    if (!k) return;
+    if (parts.value != null) { var v = k.querySelector('.value'); if (v) v.textContent = parts.value; }
+    if (parts.target != null) { var t = k.querySelector('.target'); if (t) t.textContent = parts.target; }
+    if (parts.delta != null) { var d = k.querySelector('.delta'); if (d) { d.textContent = parts.delta; d.className = 'delta ' + (parts.cls || 'flat'); } }
+  }
+  function pctDelta(cur, prev, word) {
+    if (prev == null) return { text: '', cls: 'flat' };
+    var diff = cur - prev;
+    if (Math.abs(diff) < 0.05) return { text: '– ' + word + ' 대비 변화 없음', cls: 'flat' };
+    return { text: (diff > 0 ? '▲ ' : '▼ ') + word + ' 대비 ' + Math.abs(diff).toFixed(1) + '%p', cls: diff > 0 ? 'up' : 'down' };
+  }
+  function factoryLatest(mockKey) {
+    var fac = MOCK_SERIES.factories[mockKey], n = MOCK_SERIES.months.length, i = n - 1, p = n - 2;
+    function sumAt(field, idx) { var s = 0; LOSS_TYPE_ORDER.forEach(function (t) { s += fac.types[t][field][idx] || 0; }); return s; }
+    var costs = LOSS_TYPE_ORDER.map(function (t) { return { type: t, v: (fac.types[t].cost_million[i] || 0) * 100 }; }); // 백만원 -> 만원
+    var top = costs.reduce(function (a, b) { return b.v > a.v ? b : a; }, costs[0]);
+    return { rate: sumAt('rate_pct', i), prevRate: p >= 0 ? sumAt('rate_pct', p) : null,
+             cost: sumAt('cost_million', i) * 100, prevCost: p >= 0 ? sumAt('cost_million', p) * 100 : null, top: top };
+  }
+  function anomalyCountFor(factory) {
+    var c = 0;
+    LOSS_ITEMS[factory].forEach(function (item) {
+      var re = computeRuleEval(pointsForGranularity(item.series, 'month'), item.target, 'month');
+      if ([re.uslBreak, re.uclBreak, re.increasing3, re.newHigh].some(Boolean)) c++;
+    });
+    return c;
+  }
+  function renderKpis() {
+    var months = MOCK_SERIES.months, last = months[months.length - 1], prevM = months.length > 1 ? months[months.length - 2] : null;
+    var gj = factoryLatest('광주'), cw = factoryLatest('창원');
+    var real = MOCK_SERIES.real || {};
+    function basis(mk) { return real[mk + '|' + last] ? '업로드 실데이터 기준' : '목데이터 기준'; }
+    var gjLim = gj.rate / FACTORY_META.gj.target * 100, cwLim = cw.rate / FACTORY_META.cw.target * 100;
+    var gjLimPrev = gj.prevRate == null ? null : gj.prevRate / FACTORY_META.gj.target * 100;
+    var cwLimPrev = cw.prevRate == null ? null : cw.prevRate / FACTORY_META.cw.target * 100;
+    var gjD = pctDelta(gj.rate, gj.prevRate, '전월'), cwD = pctDelta(cw.rate, cw.prevRate, '전월');
+    function limDelta(cur, prev) {
+      if (prev == null) return { text: '', cls: 'flat' };
+      if (Math.abs(cur - prev) < 0.5) return { text: '– 지난달 ' + Math.round(prev) + '%', cls: 'flat' };
+      return { text: (cur > prev ? '▲ ' : '▼ ') + '지난달 ' + Math.round(prev) + '%', cls: cur > prev ? 'up' : 'down' };
+    }
+    var gjCnt = anomalyCountFor('gj'), cwCnt = anomalyCountFor('cw');
+
+    // 종합 탭
+    var h1 = document.querySelector('[data-panel="all"] .page-head h1');
+    if (h1) h1.textContent = ymKo(last) + ' 로스 이상탐지 결과 · 종합';
+    var lu = MOCK_SERIES.lastUpload, sub = document.querySelector('[data-panel="all"] .page-head p');
+    if (sub && lu) sub.innerHTML = '마지막 업로드 ' + lu.at + ' · ' + lu.factory + ' ' + lu.ym + ' · 분석 소요 <strong class="num">' + lu.sec + '초</strong> · 광주 · 창원 2개 공장 통합 순위';
+    setKpi('all', 0, { value: gj.rate.toFixed(1) + '%', delta: gjD.text, cls: gjD.cls });
+    setKpi('all', 1, { value: cw.rate.toFixed(1) + '%', delta: cwD.text, cls: cwD.cls });
+    var tot = gjCnt + cwCnt;
+    setKpi('all', 2, { value: String(tot), delta: tot ? '이번 달 이상 항목 ' + tot + '건 — 하단 카드에서 판정 근거 확인 (' + basis('광주') + ')' : '이번 달 이상치 없음 · 하단은 값 크기순 상위 5건(' + basis('광주') + ')', cls: tot ? 'up' : 'flat' });
+    var total = gj.cost + cw.cost, totalPrev = gj.prevCost == null ? null : gj.prevCost + cw.prevCost;
+    var cd = totalPrev == null ? { text: '', cls: 'flat' } : (Math.abs(total - totalPrev) < 0.5 ? { text: '– 전월 대비 변화 없음', cls: 'flat' } :
+      { text: (total > totalPrev ? '▲ 전월 대비 ' : '▼ 전월 대비 ') + fmtManwon(Math.abs(total - totalPrev)) + (total > totalPrev ? ' 증가' : ' 감소'), cls: total > totalPrev ? 'up' : 'down' });
+    setKpi('all', 3, { value: fmtManwon(total), target: '당월(' + last + ') · 코드대체 제외 6종', delta: cd.text, cls: cd.cls });
+
+    // 광주·창원 탭
+    [['gj', gj, gjD, gjLim, gjLimPrev, gjCnt, '광주'], ['cw', cw, cwD, cwLim, cwLimPrev, cwCnt, '창원']].forEach(function (x) {
+      var panel = x[0], f = x[1], dd = x[2], lim = x[3], limPrev = x[4], cnt = x[5], mk = x[6], ld = limDelta(lim, limPrev);
+      setKpi(panel, 0, { value: f.rate.toFixed(1) + '%', delta: dd.text, cls: dd.cls });
+      setKpi(panel, 1, { value: Math.round(lim) + '%', delta: ld.text, cls: ld.cls });
+      setKpi(panel, 2, { value: String(cnt), delta: cnt ? '이번 달 이상 항목 ' + cnt + '건 — 하단 카드에서 판정 근거 확인 (' + basis(mk) + ')' : '이번 달 이상치 없음(' + basis(mk) + ', §6 참조)', cls: cnt ? 'up' : 'flat' });
+      setKpi(panel, 3, { value: fmtManwon(f.top.v), delta: f.top.type, cls: 'flat' });
+    });
+
+    // 푸터의 데이터 기준 문구: 업로드한 실데이터가 있으면 그 사실을 표시
+    var realKeys = Object.keys(real);
+    var basisEl = document.getElementById('data-basis');
+    if (basisEl && realKeys.length) basisEl.textContent = '데이터 기준: 업로드 실데이터 ' + realKeys.map(function (k) { return k.replace('|', ' '); }).join(', ') + ' (엑셀 로스분석 시트 산식) · 그 외 기간은 008/009 목데이터(합성)';
+    // '8월 기준' 힌트 + 종합 탭 공장별 관리 현황(수치·게이지)
+    var monthNo = Number(last.split('-')[1]);
+    document.querySelectorAll('.card-head .hint').forEach(function (el) { if (/월 기준$/.test(el.textContent.trim())) el.textContent = monthNo + '월 기준'; });
+    var rows = document.querySelectorAll('[data-panel="all"] .compare-row'), meters = document.querySelectorAll('[data-panel="all"] .meter i');
+    [[0, gj.rate, gjLim], [1, cw.rate, cwLim]].forEach(function (x) {
+      var row = rows[x[0]]; if (!row) return;
+      var nums = row.querySelectorAll('.cval .num');
+      if (nums[0]) nums[0].textContent = x[1].toFixed(1) + '%';
+      if (nums[1]) nums[1].textContent = Math.round(x[2]) + '%';
+      var m = meters[x[0]];
+      if (m) { m.style.width = Math.max(0, Math.min(100, x[2])) + '%'; m.style.background = x[2] >= 100 ? 'var(--accent)' : 'var(--accent2)'; }
+    });
+  }
+
   function renderAll(granularity) {
+    renderKpis();
     renderTrends(granularity);
     renderTopAnomalies(granularity);
     renderLossCards('gj', 'anomaly-list-gj', granularity);
@@ -2128,124 +2457,54 @@
   renderAll('month');
 
   // ===== 업로드 탭: ZMMR0340/ZCOE0101/MES데이터/ZPPR0070 실제 파싱 + 누적 반영 =====
-  // 007_광주_폐극판폐전지_공정별_발생량_PRD.md §2~4에서 확인한 실측 컬럼 구조를 기준으로 한다.
-  // "정확한 로스 금액 산식"은 박상열_PRD.md §10에 여전히 미확정 항목으로 남아 있으므로,
-  // 아래 계산은 원본 파일에서 확인 가능한 컬럼만으로 구성한 최선의 근사치이며 현업 검증이 필요하다.
+  // 계산은 위쪽 <script>의 LOSS ENGINE(LE.compute)이 한다 — 엑셀 '로스분석' 시트 산식을 이식한 것으로,
+  // 광주·창원 2026-08 워크북의 자재 x 로스유형 칸 값과 일치하도록 검증했다.
 
-  function num(v) { var n = Number(v); return isNaN(n) ? 0 : n; }
-
-  function findHeaderRowIndex(aoa, requiredCols) {
-    var scanRows = Math.min(aoa.length, 10);
-    for (var i = 0; i < scanRows; i++) {
-      var row = (aoa[i] || []).map(function (c) { return c == null ? '' : String(c).trim(); });
-      var hit = requiredCols.every(function (rc) { return row.indexOf(rc) !== -1; });
-      if (hit) return i;
-    }
-    return -1;
-  }
-  function aoaToObjects(aoa, headerIdx) {
-    var headers = aoa[headerIdx].map(function (c) { return c == null ? '' : String(c).trim(); });
-    var out = [];
-    for (var i = headerIdx + 1; i < aoa.length; i++) {
-      var row = aoa[i];
-      if (!row || row.every(function (c) { return c == null || c === ''; })) continue;
-      var obj = {};
-      headers.forEach(function (h, ci) { if (h) obj[h] = row[ci]; });
-      out.push(obj);
-    }
-    return out;
-  }
   function pickSheet(wb, patterns) {
     var name = wb.SheetNames.find(function (n) { return patterns.some(function (p) { return n.indexOf(p) !== -1; }); });
     return wb.Sheets[name || wb.SheetNames[0]];
   }
-  function extractRows(file, sheetPatterns, requiredCols, label) {
+  function readAoa(file, sheetPatterns) {
     return file.arrayBuffer().then(function (buf) {
       var wb = XLSX.read(buf, { type: 'array' });
-      var ws = pickSheet(wb, sheetPatterns);
-      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
-      var hIdx = findHeaderRowIndex(aoa, requiredCols);
-      if (hIdx < 0) throw new Error(label + ': 필요한 컬럼(' + requiredCols.join(', ') + ')을 가진 헤더 행을 찾지 못했습니다. 원본 시트 구조를 확인해 주세요.');
-      return aoaToObjects(aoa, hIdx);
+      return XLSX.utils.sheet_to_json(pickSheet(wb, sheetPatterns), { header: 1, raw: true, defval: null });
     });
   }
+  // MAPPING(표7) -> { 자재 번호: { bom, ratio } } (VLOOKUP과 같이 첫 번째 일치 행만 사용)
+  function bomOverrideFromAoa(aoa) {
+    var h = -1, i;
+    for (i = 0; i < Math.min(aoa.length, 10); i++) {
+      var row = (aoa[i] || []).map(function (c) { return c == null ? '' : String(c).trim(); });
+      if (row.indexOf('자재 번호') !== -1 && row.indexOf('BOM 구성부품') !== -1) { h = i; break; }
+    }
+    if (h < 0) throw new Error('MAPPING: 자재 번호 / BOM 구성부품 컬럼을 찾지 못했습니다.');
+    var names = aoa[h].map(function (c) { return c == null ? '' : String(c).trim(); });
+    var cItem = names.indexOf('자재 번호'), cBom = names.indexOf('BOM 구성부품'), cRatio = names.indexOf('구성품비율');
+    var cQty = names.indexOf('구성부품단위로 계산된 구성부품수량');
+    var out = {};
+    for (i = h + 1; i < aoa.length; i++) {
+      var r = aoa[i]; if (!r) continue;
+      var item = r[cItem] == null ? '' : String(r[cItem]).trim(), bom = r[cBom] == null ? '' : String(r[cBom]).trim();
+      if (!item || !bom || out[item]) continue;
+      var ratio = cRatio >= 0 && r[cRatio] != null && r[cRatio] !== '' ? Number(r[cRatio]) : (cQty >= 0 ? Number(r[cQty]) / 1000 : 1);
+      out[item] = { bom: bom, ratio: isNaN(ratio) ? 1 : ratio };
+    }
+    return out;
+  }
 
-  function runUploadPipeline(files) {
-    return Promise.all([
-      extractRows(files.zmmr, ['ZMMR', '불량수량'], ['구분유형', '실제 차이금액'], 'ZMMR0340'),
-      extractRows(files.zcoe, ['ZCOE', '총 투입량'], ['자재', '출고수량합계'], 'ZCOE0101'),
-      extractRows(files.mes, ['MES'], ['귀책부서명', '품목', '불량수량'], 'MES데이터'),
-      extractRows(files.zppr, ['ZPPR'], ['자재 번호', 'BOM 구성부품'], 'ZPPR0070')
-    ]).then(function (all) {
-      var zmmrRows = all[0], zcoeRows = all[1], mesRows = all[2], zpprRows = all[3];
-
-      var priceByMaz = {};
-      zcoeRows.forEach(function (r) {
-        var maz = String(r['자재'] || '').trim();
-        if (maz) priceByMaz[maz] = num(r['평균 단가']);
+  function runUploadPipeline(files, opts) {
+    var jobs = [
+      readAoa(files.zmmr, ['ZMMR', '불량수량']),
+      readAoa(files.zcoe, ['ZCOE', '총 투입량']),
+      readAoa(files.mes, ['MES']),
+      readAoa(files.zppr, ['ZPPR'])
+    ];
+    if (files.map) jobs.push(readAoa(files.map, ['MAPPING']));
+    return Promise.all(jobs).then(function (all) {
+      return LE.compute({ zmmr: all[0], zcoe: all[1], mes: all[2], zppr: all[3] }, {
+        factory: opts.factory, year: opts.year, month: opts.month,
+        denomAdjust: opts.denomAdjust, bomMapOverride: files.map ? bomOverrideFromAoa(all[4]) : null
       });
-
-      var bomByItem = {};
-      zpprRows.forEach(function (r) {
-        var item = String(r['자재 번호'] || '').trim();
-        var maz = String(r['BOM 구성부품'] || '').trim();
-        var qty = r['구성부품단위로 계산된 구성부품수량'] != null ? num(r['구성부품단위로 계산된 구성부품수량']) : num(r['구성부품수량']);
-        if (!item || !maz) return;
-        (bomByItem[item] = bomByItem[item] || []).push({ maz: maz, qty: qty });
-      });
-
-      // 총 투입금액(분모) — 업로드된 ZCOE0101에 실제로 잡히는 모든 자재의 출고수량합계 × 평균 단가.
-      // 순연·경연·칼슘연(연 원자재)만으로 한정할지는 §10 미확정 — 여기서는 파일에 있는 그대로 전부 합산한다.
-      var totalInputWon = 0;
-      zcoeRows.forEach(function (r) {
-        var maz = String(r['자재'] || '').trim();
-        totalInputWon += num(r['출고수량합계']) * (priceByMaz[maz] || 0);
-      });
-
-      var typeAmounts = {};
-      function addAmount(type, amt) { typeAmounts[type] = (typeAmounts[type] || 0) + amt; }
-
-      // (a) ZMMR0340 -> 코드대체/재고보정/슬러그(+자재전표텍스트 기준 폐연호·초기연분 재분류)
-      zmmrRows.forEach(function (r) {
-        var type = String(r['구분유형'] || '').trim();
-        if (type === '슬러그') {
-          var txt = String(r['자재전표텍스트'] || '');
-          if (txt.indexOf('폐연호') !== -1) type = '폐연호';
-          else if (txt.indexOf('초기연분') !== -1) type = '초기연분';
-        }
-        if (LOSS_TYPE_ORDER.indexOf(type) === -1) return;
-        var amt = Math.abs(num(r['실제 차이금액']) || num(r['현지통화금액']));
-        addAmount(type, amt);
-      });
-
-      // (b) MES데이터 -> 폐극판(품목 SLI)/폐전지(품목 PCC·PCM) — BOM 구성부품수량 × 단가
-      var skipped = 0;
-      mesRows.forEach(function (r) {
-        var item = String(r['품목'] || '').trim();
-        var dept = String(r['귀책부서명'] || '');
-        var type = null;
-        if (item.indexOf('SLI') === 0 || dept.indexOf('폐극판선별') !== -1) type = '폐극판';
-        else if (item.indexOf('PCC') === 0 || item.indexOf('PCM') === 0) type = '폐전지';
-        if (!type) return; // 전조/카바/격리판 등 자재불량은 로스유형 7종 밖 — 007 PRD §4-2
-        var qty = num(r['불량수량']);
-        if (!qty) return;
-        var bom = bomByItem[item];
-        if (!bom) { skipped++; return; }
-        bom.forEach(function (comp) {
-          var price = priceByMaz[comp.maz];
-          if (price == null) { skipped++; return; }
-          addAmount(type, qty * comp.qty * price);
-        });
-      });
-
-      var warnings = [];
-      if (skipped > 0) warnings.push('MES데이터 중 ' + skipped + '건은 ZPPR0070(BOM) 또는 ZCOE0101(단가)에서 짝을 찾지 못해 이번 집계에서 제외했습니다.');
-      if (totalInputWon <= 0) warnings.push('ZCOE0101에서 총 투입금액을 0으로 계산했습니다 — 로스율이 0%로 표시됩니다. 파일 구조를 확인해 주세요.');
-
-      return {
-        typeAmounts: typeAmounts, totalInputWon: totalInputWon, warnings: warnings,
-        counts: { zmmr: zmmrRows.length, zcoe: zcoeRows.length, mes: mesRows.length, zppr: zpprRows.length }
-      };
     });
   }
 
@@ -2264,14 +2523,15 @@
     });
     return idx;
   }
-  function applyFactoryMonth(factoryKey, idx, typeAmountsWon, totalInputWon) {
+  // 로스율(%) = 로스 수량(kg) ÷ 납 총 투입량(kg) — 엑셀 '로스분석' 시트 정의. 비용(백만원) = 로스 수량 x 평균 단가.
+  // 재고보정처럼 음수(차감 조정)가 나올 수 있어 부호를 그대로 유지한다.
+  function applyFactoryMonth(factoryKey, idx, result) {
     var fac = MOCK_SERIES.factories[factoryKey];
-    var totalLossWon = LOSS_TYPE_ORDER.reduce(function (s, t) { return s + (typeAmountsWon[t] || 0); }, 0);
-    fac.overall_rate_pct[idx] = totalInputWon > 0 ? Math.round((totalLossWon / totalInputWon * 100) * 1000) / 1000 : 0;
+    fac.overall_rate_pct[idx] = Math.round(result.totalRatePct * 1000) / 1000;
     LOSS_TYPE_ORDER.forEach(function (t) {
-      var amt = typeAmountsWon[t] || 0;
-      fac.types[t].rate_pct[idx] = totalInputWon > 0 ? Math.round((amt / totalInputWon * 100) * 1000) / 1000 : 0;
-      fac.types[t].cost_million[idx] = Math.round((amt / 1000000) * 10) / 10;
+      var s = result.summary[t];
+      fac.types[t].rate_pct[idx] = Math.round(s.ratePct * 1000) / 1000;
+      fac.types[t].cost_million[idx] = Math.round((s.amt / 1000000) * 10) / 10;
     });
   }
 
@@ -2321,7 +2581,8 @@
         zmmr: document.getElementById('upload-zmmr').files[0],
         zcoe: document.getElementById('upload-zcoe').files[0],
         mes: document.getElementById('upload-mes').files[0],
-        zppr: document.getElementById('upload-zppr').files[0]
+        zppr: document.getElementById('upload-zppr').files[0],
+        map: document.getElementById('upload-map').files[0] || null
       };
       if (!yearMonth || !files.zmmr || !files.zcoe || !files.mes || !files.zppr) {
         resultBox.innerHTML = '<div class="upload-error">대상 연월과 4개 파일을 모두 선택해 주세요.</div>';
@@ -2336,34 +2597,55 @@
         resultBox.innerHTML = '<div class="upload-error">xlsx 파싱 라이브러리(SheetJS)를 불러오지 못했습니다 — 인터넷 연결을 확인해 주세요.</div>';
         return;
       }
+      var adj = null;
+      if (factoryKey === '창원') {
+        var a1 = Number(document.getElementById('upload-adj-1').value), a2 = Number(document.getElementById('upload-adj-2').value);
+        if (a1 || a2) adj = { MAZ00001: a1 || 0, MAZ00032: a2 || 0 };
+      }
+      var ymParts = yearMonth.split('-');
       resultBox.innerHTML = '<div class="upload-pending">처리 중…</div>';
-      runUploadPipeline(files).then(function (result) {
+      var t0 = Date.now();
+      runUploadPipeline(files, { factory: factoryKey, year: Number(ymParts[0]), month: Number(ymParts[1]), denomAdjust: adj }).then(function (result) {
         var idx = ensureMonthSlot(yearMonth);
-        applyFactoryMonth(factoryKey, idx, result.typeAmounts, result.totalInputWon);
+        applyFactoryMonth(factoryKey, idx, result);
         YEAR_INFO = computeYearInfo(MOCK_SERIES.months);
         TOTAL_MONTHS = MOCK_SERIES.months.length;
+        var nowD = new Date(), pad2 = function (n) { return n < 10 ? '0' + n : String(n); };
+        MOCK_SERIES.real = MOCK_SERIES.real || {};
+        MOCK_SERIES.real[factoryKey + '|' + yearMonth] = true;
+        MOCK_SERIES.lastUpload = { factory: factoryKey, ym: yearMonth, at: pad2(nowD.getHours()) + ':' + pad2(nowD.getMinutes()), sec: ((Date.now() - t0) / 1000).toFixed(1) };
+        buildLossItems();
         persistSeries(MOCK_SERIES);
         renderAll(currentGranularity);
         renderUploadHistory();
         if (uploadMonthInput) uploadMonthInput.value = nextYearMonth(MOCK_SERIES.months[MOCK_SERIES.months.length - 1]);
 
+        function fmtKg(v) { return Math.round(v).toLocaleString('ko-KR') + 'kg'; }
         var rows = LOSS_TYPE_ORDER.map(function (t) {
-          var amt = result.typeAmounts[t] || 0;
-          return '<tr><td>' + t + '</td><td>' + fmtWon(amt) + '</td></tr>';
+          var s = result.summary[t];
+          return '<tr><td>' + t + '</td><td>' + fmtKg(s.qty) + '</td><td>' + fmtWon(s.amt) + '</td><td>' + s.ratePct.toFixed(3) + '%</td></tr>';
         }).join('');
-        var totalLossWon = LOSS_TYPE_ORDER.reduce(function (s, t) { return s + (result.typeAmounts[t] || 0); }, 0);
-        var ratePct = result.totalInputWon > 0 ? (totalLossWon / result.totalInputWon * 100) : 0;
+        var rc = result.reclass || {};
+        var reclassTxt = (rc['폐연호'] || rc['초기연분']) ? ' · 상대연 출고 재분류: 폐연호 ' + (rc['폐연호'] || 0) + '건, 초기연분 ' + (rc['초기연분'] || 0) + '건' : '';
         resultBox.innerHTML =
           '<div class="upload-ok">' +
-            '<b>' + factoryKey + ' ' + yearMonth + '</b> 반영 완료 (원본 행수 — ZMMR0340 ' + result.counts.zmmr + '건, ZCOE0101 ' + result.counts.zcoe + '건, MES데이터 ' + result.counts.mes + '건, ZPPR0070 ' + result.counts.zppr + '건)' +
-            '<table class="upl-table"><thead><tr><th>로스유형</th><th>계산 금액</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-            '<div style="margin-top:8px">총 로스금액 <b class="num">' + fmtWon(totalLossWon) + '</b> · 총 투입금액 <b class="num">' + fmtWon(result.totalInputWon) + '</b> · 납 로스율 <b class="num">' + ratePct.toFixed(2) + '%</b></div>' +
+            '<b>' + factoryKey + ' ' + yearMonth + '</b> 반영 완료 (사용 행수 — ZMMR0340 ' + result.counts.zmmr + '건, ZCOE0101 ' + result.counts.zcoe + '건, MES데이터 ' + result.counts.mes + '건, ZPPR0070 ' + result.counts.zppr + '건)' + reclassTxt +
+            '<table class="upl-table"><thead><tr><th>로스유형</th><th>로스 수량</th><th>로스 금액</th><th>로스율</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+            '<div style="margin-top:8px">총 로스금액 <b class="num">' + fmtWon(result.totalAmt) + '</b> · 납 총 투입량 <b class="num">' + fmtKg(result.denominator) + '</b>' + (result.denomAdjust ? ' (1세대 극판 가산 ' + fmtKg(result.denomAdjust) + ' 포함)' : '') + ' · 납 로스율 <b class="num">' + result.totalRatePct.toFixed(3) + '%</b>' +
+            '<div style="margin-top:4px;color:var(--muted,#717779);font-size:12px">코드대체(재분류)는 로스율에서 제외 · 참고: 코드대체 금액 ' + fmtWon(result.typeAmt['코드대체']) + '</div></div>' +
             (result.warnings.length ? result.warnings.map(function (w) { return '<div class="upload-warn">⚠ ' + w + '</div>'; }).join('') : '') +
           '</div>';
       }).catch(function (err) {
         resultBox.innerHTML = '<div class="upload-error">처리 실패: ' + (err && err.message ? err.message : String(err)) + '</div>';
       });
     });
+  }
+
+  // 공장 선택에 따라 창원 전용 입력 노출
+  var uploadFactorySel = document.getElementById('upload-factory'), adjBox = document.getElementById('upload-adj-box');
+  if (uploadFactorySel && adjBox) {
+    var syncAdj = function () { adjBox.hidden = uploadFactorySel.value !== '창원'; };
+    uploadFactorySel.addEventListener('change', syncAdj); syncAdj();
   }
 
   var uploadReset = document.getElementById('upload-reset');
