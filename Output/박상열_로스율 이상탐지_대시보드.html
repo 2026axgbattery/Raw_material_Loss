@@ -304,17 +304,6 @@
   .pill-warn { background: var(--accent-tint); color: var(--accent-strong); }
   .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 
-  /* ---------- Shared filter row ---------- */
-  .shared-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border-soft);
-    margin-bottom: 16px;
-  }
-  .shared-filters select { flex: 1 1 140px; }
-
   .granularity-toggle {
     display: flex;
     gap: 4px;
@@ -882,30 +871,10 @@
     </div>
   </div>
 
-  <div class="shared-filters">
-    <select aria-label="로스유형 필터">
-      <option>전체 로스유형</option>
-      <option>재고보정</option>
-      <option>슬러그</option>
-      <option>폐연호</option>
-      <option>초기연분</option>
-      <option>폐극판</option>
-      <option>폐전지</option>
-    </select>
-    <select aria-label="로스발생자재 필터">
-      <option>전체 로스발생자재</option>
-      <option>순연</option>
-      <option>경연</option>
-      <option>칼슘연</option>
-      <option>전조</option>
-      <option>카바</option>
-      <option>격리판</option>
-      <option>부자재</option>
-      <option>의장재</option>
-      <option>포장재</option>
-      <option>부대품</option>
-    </select>
-  </div>
+  <!-- 로스유형·로스발생자재 필터 드롭다운(장식용, 실제 필터링 미연결)은 2026-10-02 제거함.
+       재도입 시: 로스유형은 LOSS_TYPE_ORDER 데이터가 있어 실제 필터링 가능하지만,
+       로스발생자재 10종별 데이터는 앱 어디에도 없어(업로드 탭의 '납 자재 45종'과는 다른 분류)
+       값을 지어내지 않는 한 연결할 수 없다(박상열_PRD.md §10). -->
 
   <!-- ================= 종합 ================= -->
   <section class="tab-panel" data-panel="all">
