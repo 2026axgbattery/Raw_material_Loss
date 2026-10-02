@@ -1,4 +1,15 @@
 <title>이상탐지 대시보드</title>
+<!-- 다크/라이트 모드 전환 시 깜빡임(FOUC) 없이 바로 적용되도록, 저장된 테마를 CSS/본문 파싱 전에 가장 먼저 적용한다. -->
+<script>
+(function () {
+  var KEY = 'loss-insight-theme';
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  var theme = (stored === 'light' || stored === 'dark') ? stored
+    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
 <!-- 업로드 탭에서 xlsx를 브라우저 안에서 직접 읽기 위한 SheetJS(CDN). 인터넷 연결이 없으면 업로드 탭만 동작하지 않는다. -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -195,6 +206,20 @@
   }
   .rail .gtab { padding: 8px 4px; text-align: center; }
   .rail .gtab[aria-pressed="true"] { box-shadow: none; border: 1px solid var(--border-soft); }
+
+  /* ---------- 다크/라이트 모드 토글 (레일 좌측 하단 고정) ---------- */
+  .theme-toggle {
+    margin-top: auto; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    width: 100%; padding: 12px 4px 4px; background: transparent; border: none; border-top: 1px solid var(--border-soft);
+    color: var(--text-tertiary); font: inherit; font-size: 0.625rem; cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--text-primary); }
+  .theme-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .theme-toggle .theme-icon-sun, .theme-toggle .theme-label-light { display: none; }
+  :root[data-theme="dark"] .theme-toggle .theme-icon-sun { display: block; }
+  :root[data-theme="dark"] .theme-toggle .theme-icon-moon { display: none; }
+  :root[data-theme="dark"] .theme-toggle .theme-label-light { display: inline; }
+  :root[data-theme="dark"] .theme-toggle .theme-label-dark { display: none; }
 
   .frame-scroll {
     flex: 1;
@@ -833,6 +858,13 @@
 
     <button class="tab" role="tab" data-tab="upload" aria-selected="false">업로드</button>
     <button class="tab" role="tab" data-tab="chat" aria-selected="false">챗봇</button>
+
+    <button type="button" id="theme-toggle-btn" class="theme-toggle" aria-label="다크 모드로 전환">
+      <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
+      <span class="theme-label-dark">다크모드</span>
+      <span class="theme-label-light">라이트모드</span>
+    </button>
   </nav>
   <div class="frame-scroll">
 
@@ -3011,4 +3043,17 @@
     });
   });
   updateGranularityAvailability('all');
+
+  // ===== 다크/라이트 모드 토글 =====
+  // 초기 테마는 파일 맨 위 스크립트에서 이미 적용해 뒀다(깜빡임 방지) — 여기서는 클릭 시 전환만 담당한다.
+  var THEME_KEY = 'loss-insight-theme';
+  var themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      themeBtn.setAttribute('aria-label', next === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환');
+    });
+  }
 </script>
